@@ -45,7 +45,7 @@ try:
         BHASHINI_INFERENCE_URL: str = os.getenv("BHASHINI_INFERENCE_URL", "https://dhruva-api.bhashini.gov.in")
 
         GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-        GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-3-flash-preview")
+        GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-flash-lite-latest")
 
         SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
         SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
