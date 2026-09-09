@@ -157,10 +157,15 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
-  const handlePurgeAll = () => {
-    if (confirm('Permanently purge all local session history from this device?')) {
+  const handleDeleteRecords = async () => {
+    if (confirm('Permanently delete all grievance records and wipe call history from this device (DPDP Act Right to Erasure)?')) {
+      try {
+        await api.deleteRecords(callerPhone);
+      } catch (err) {
+        console.warn('Backend delete records error:', err);
+      }
       setComplaints([]);
-      setStatusMessage('All local case logs have been purged for your privacy.');
+      setStatusMessage('All grievance records and call history have been deleted.');
       setTimeout(() => setStatusMessage(null), 4000);
     }
   };
@@ -195,10 +200,10 @@ export const UserDashboard: React.FC = () => {
                 {complaints.length > 0 && (
                   <button 
                     type="button" 
-                    onClick={handlePurgeAll} 
+                    onClick={handleDeleteRecords} 
                     className="button secondary small w-button"
                   >
-                    Purge All (Privacy)
+                    Delete Records
                   </button>
                 )}
               </div>

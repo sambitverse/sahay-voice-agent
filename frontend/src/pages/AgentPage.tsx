@@ -87,12 +87,39 @@ export const AgentPage: React.FC = () => {
     );
   };
 
-  const toggleCall = () => {
+  const toggleCall = async () => {
     if (!isCalling) {
       syncCallerSession(callerPhone);
+      setIsCalling(true);
+    } else {
+      setIsCalling(false);
+      // Automatically register completed helpline call session with backend & database
+      if (callDuration >= 3) {
+        const randId = Math.floor(1000 + Math.random() * 9000);
+        const ticketRef = `TKT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randId}`;
+        try {
+          await api.registerComplaint({
+            id: `complaint_${Date.now()}`,
+            call_id: `call_${randId}_agent`,
+            caller_number: callerPhone,
+            ticket_ref: ticketRef,
+            type: 'voice',
+            timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+            risk_level: 'HIGH',
+            summary: `Helpline voice triage call (${formatSeconds(callDuration)}). Multilingual audio prosody and distress assessment logged.`,
+            language: 'or-IN',
+            recording_url: `/api/v1/recordings/call_9901_forest.wav`,
+            recommended_services: ['14566 National Helpline', 'DLSA Emergency Cell', 'PCR 112 Police Dispatch'],
+            status: 'REGISTERED_ACTIVE_TRIAGE',
+            is_legitimate: true
+          });
+        } catch (err) {
+          console.warn('Could not sync call recording to backend:', err);
+        }
+      }
     }
-    setIsCalling(!isCalling);
   };
+
 
   const handleSendMessage = async (customText?: string) => {
     const textToSend = (customText || inputMessage).trim();

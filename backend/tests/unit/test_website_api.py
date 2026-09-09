@@ -27,16 +27,24 @@ def test_portal_login_user_and_operator():
     assert op_res.json()["role"] == "operator"
 
 def test_send_otp_endpoint():
-    # Valid phone
-    res = client.post("/api/v1/auth/send-otp", json={"phone": "+91 94371-88210"})
+    # Valid phone generates 6-digit random OTP
+    phone = "+91 94371-88210"
+    res = client.post("/api/v1/auth/send-otp", json={"phone": phone})
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "success"
-    assert data["otp"] == "14566"
+    assert len(data["otp"]) == 6
+    assert data["otp"].isdigit()
+
+    # Login with the freshly generated random OTP
+    login_res = client.post("/api/v1/auth/login", json={"role": "user", "identifier": phone, "code": data["otp"]})
+    assert login_res.status_code == 200
+    assert login_res.json()["role"] == "user"
 
     # Invalid short phone
     bad_res = client.post("/api/v1/auth/send-otp", json={"phone": "123"})
     assert bad_res.status_code == 400
+
 
 def test_grounded_chat_message_wilderness_pursuit():
     payload = {
@@ -96,4 +104,32 @@ def test_desia_and_broken_odia_chat_message():
     # It should identify pursuit/wilderness and elevate to CRITICAL
     assert data["risk_level"] == "CRITICAL"
     assert "PCR 112" in data["text"]
+
+
+def test_complaints_register_and_bulk_delete():
+    # Register complaint
+    payload = {
+        "call_id": "call_test_9999",
+        "ticket_id": "TKT-TEST-9999",
+        "summary": "Outdoor pursuit near Malkangiri border.",
+        "risk_level": "CRITICAL",
+        "caller_number": "+91 99999-88888",
+        "language": "or-IN"
+    }
+    reg_res = client.post("/api/v1/complaints/register", json=payload)
+    assert reg_res.status_code == 200
+    assert reg_res.json()["status"] == "success"
+
+    # Query recent complaints for that phone
+    list_res = client.get("/api/v1/complaints/recent?phone=9999988888")
+    assert list_res.status_code == 200
+    complaints = list_res.json()["complaints"]
+    assert any(c["ticket_ref"] == "TKT-TEST-9999" for c in complaints)
+
+    # Delete all complaints for that phone (Delete Records)
+    del_res = client.delete("/api/v1/complaints?phone=9999988888")
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "success"
+    assert del_res.json()["deleted_count"] >= 1
+
 

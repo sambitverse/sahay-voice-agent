@@ -5,10 +5,12 @@ emotion vectors, triage assessments, escalations, and compliance audit logs.
 """
 
 import os
+import re
 import hashlib
 import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,7 @@ try:
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
+
 
 
 class SupabaseManager:
@@ -319,3 +322,27 @@ class SupabaseManager:
             logger.info(f"[SupabaseManager] Complaint {identifier} permanently erased per citizen request.")
 
         return deleted_item
+
+    def delete_all_complaints(self, phone: Optional[str] = None) -> int:
+        """
+        DPDP Act Right to Erasure: Permanently delete citizen complaints and audio recordings.
+        If phone is provided, wipes complaints belonging to that phone number; otherwise all.
+        """
+        to_delete = []
+        if phone:
+            digits = re.sub(r"\D", "", phone)[-10:]
+            to_delete = [
+                c for c in self.in_memory_complaints
+                if digits and digits in re.sub(r"\D", "", c.get("caller_number", ""))
+            ]
+        else:
+            to_delete = list(self.in_memory_complaints)
+
+        for comp in to_delete:
+            identifier = comp.get("ticket_ref") or comp.get("call_id") or comp.get("id")
+            if identifier:
+                self.delete_complaint(identifier)
+
+        logger.info(f"[SupabaseManager] Deleted {len(to_delete)} records per DPDP Act erasure request.")
+        return len(to_delete)
+
