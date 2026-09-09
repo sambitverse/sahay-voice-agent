@@ -13,7 +13,7 @@ export const AgentPage: React.FC = () => {
   });
   const [isCalling, setIsCalling] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  const [detectedLanguage] = useState('Sarvam 22+ Auto-Detect');
+  const [detectedLanguage] = useState('Auto-Detect');
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'agent'; text: string; risk?: string }>>([
     {
       sender: 'agent',
@@ -136,8 +136,8 @@ export const AgentPage: React.FC = () => {
   return (
     <>
       {/* Hero Section */}
-      <section className="section" style={{ paddingTop: '100px' }}>
-        <main className="hero-content">
+      <section className="section" style={{ paddingTop: '74px', paddingBottom: 0 }}>
+        <main className="hero-content" style={{ paddingTop: 0, minHeight: 'auto' }}>
           <div className="w-layout-blockcontainer container hero internal w-container">
             <div className="hero-section-content">
               <div className="hero-section-content-block internal bg-light-blue">
@@ -193,9 +193,6 @@ export const AgentPage: React.FC = () => {
                     {isCalling ? 'Live Voice Connection Active' : 'Helpline Standby'}
                   </h3>
                   <div className="line black margin-bottom-20"></div>
-                  <p className="regular-m margin-bottom-24">
-                    Direct low-latency WebSocket connection to Sarvam Saaras STT, Gemini Flash LLM, and Sarvam Bulbul TTS with continuous VAD.
-                  </p>
                 </div>
 
                 {/* Animated Waveform Canvas */}

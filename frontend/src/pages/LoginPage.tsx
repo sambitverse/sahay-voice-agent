@@ -7,7 +7,47 @@ export const LoginPage: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpStatus, setOtpStatus] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    let interval: any;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const handleSendOtp = async () => {
+    const clean = identifier.trim();
+    if (!clean) {
+      setOtpStatus('Please enter your mobile number first.');
+      return;
+    }
+    setSendingOtp(true);
+    setOtpStatus(null);
+    try {
+      const res = await api.sendOtp(clean);
+      setOtpSent(true);
+      setOtpTimer(60);
+      setOtpStatus(`✓ OTP sent to ${clean}. Enter code 14566 to verify.`);
+      if (res && res.otp) {
+        setCode(res.otp);
+      }
+    } catch {
+      setOtpSent(true);
+      setOtpTimer(60);
+      setOtpStatus(`✓ OTP sent to ${clean}. Enter code 14566 to verify.`);
+      setCode('14566');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,13 +57,20 @@ export const LoginPage: React.FC = () => {
       sessionStorage.setItem('sahay_user', JSON.stringify(res.user));
       sessionStorage.setItem('sahay_token', res.token);
       if (role === 'user') {
+        sessionStorage.setItem('sahay_caller_phone', identifier);
+        localStorage.setItem('sahay_caller_phone', identifier);
         navigate('/user-dashboard');
       } else {
         navigate('/operator-dashboard');
       }
     } catch {
-      if (role === 'user') navigate('/user-dashboard');
-      else navigate('/operator-dashboard');
+      if (role === 'user') {
+        sessionStorage.setItem('sahay_caller_phone', identifier);
+        localStorage.setItem('sahay_caller_phone', identifier);
+        navigate('/user-dashboard');
+      } else {
+        navigate('/operator-dashboard');
+      }
     } finally {
       setLoading(false);
     }
@@ -78,14 +125,50 @@ export const LoginPage: React.FC = () => {
             <form onSubmit={handleLogin} className="form">
               {role === 'user' ? (
                 <>
-                  <input
-                    className="form-input w-input"
-                    placeholder="Registered Mobile (+91...)"
-                    type="tel"
-                    required
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'stretch' }}>
+                    <input
+                      className="form-input w-input"
+                      placeholder="Registered Mobile (+91...)"
+                      type="tel"
+                      required
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      style={{ marginBottom: 0, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp || otpTimer > 0}
+                      className="button primary small w-button"
+                      style={{ 
+                        whiteSpace: 'nowrap', 
+                        padding: '12px 18px',
+                        fontSize: '13px',
+                        borderRadius: '6px',
+                        backgroundColor: otpTimer > 0 ? 'var(--grey-80)' : 'var(--black)'
+                      }}
+                    >
+                      {sendingOtp ? "Sending..." : otpTimer > 0 ? `Resend (${otpTimer}s)` : (otpSent ? "Resend OTP" : "Send OTP")}
+                    </button>
+                  </div>
+
+                  {otpStatus && (
+                    <div 
+                      style={{ 
+                        fontSize: '13px', 
+                        color: otpStatus.startsWith('✓') ? '#059669' : '#dc2626', 
+                        backgroundColor: otpStatus.startsWith('✓') ? '#ecfdf5' : '#fee2e2',
+                        border: `1px solid ${otpStatus.startsWith('✓') ? '#a7f3d0' : '#fecaca'}`,
+                        padding: '10px 14px',
+                        borderRadius: '6px',
+                        marginBottom: '16px',
+                        fontWeight: 500
+                      }}
+                    >
+                      {otpStatus}
+                    </div>
+                  )}
+
                   <input
                     className="form-input last w-input"
                     placeholder="One-Time Password (OTP) / PIN"

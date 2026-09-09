@@ -26,6 +26,18 @@ def test_portal_login_user_and_operator():
     assert op_res.status_code == 200
     assert op_res.json()["role"] == "operator"
 
+def test_send_otp_endpoint():
+    # Valid phone
+    res = client.post("/api/v1/auth/send-otp", json={"phone": "+91 94371-88210"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["otp"] == "14566"
+
+    # Invalid short phone
+    bad_res = client.post("/api/v1/auth/send-otp", json={"phone": "123"})
+    assert bad_res.status_code == 400
+
 def test_grounded_chat_message_wilderness_pursuit():
     payload = {
         "message": "ମୋତେ ମାରିବାକୁ ଗୋଡ଼ାଉଛନ୍ତି, ମୁଁ ଏବେ ଜଙ୍ଗଲରେ ଲୁଚିକି ଅଛି।",

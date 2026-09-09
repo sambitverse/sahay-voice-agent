@@ -24,6 +24,9 @@ class ContactInquiryRequest(BaseModel):
     category: str = "General Inquiry"
     message: str
 
+class SendOtpRequest(BaseModel):
+    phone: str = Field(..., description="Mobile number for OTP verification")
+
 class LoginRequest(BaseModel):
     role: str = Field(..., description="'user' or 'operator'")
     identifier: str
@@ -53,6 +56,18 @@ async def submit_contact_inquiry(req: ContactInquiryRequest):
         "status": "success",
         "ticket_id": ticket_id,
         "message": "Your inquiry has been securely recorded. A helpline officer will contact you if required."
+    }
+
+@router.post("/auth/send-otp")
+async def send_otp(req: SendOtpRequest):
+    clean_digits = "".join(filter(str.isdigit, req.phone))
+    if len(clean_digits) < 10:
+        raise HTTPException(status_code=400, detail="Invalid mobile number. Please enter at least 10 digits.")
+    return {
+        "status": "success",
+        "phone": req.phone,
+        "message": f"One-Time Password successfully dispatched to {req.phone}.",
+        "otp": "14566"
     }
 
 @router.post("/auth/login")

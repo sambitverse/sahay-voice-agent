@@ -2,6 +2,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 export const Footer: React.FC = () => {
+  const handleHomeClick = (e: React.MouseEvent) => {
+    if (window.location.pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <section className="footer margin-top-176-mobile-144">
       <div className="w-layout-blockcontainer container w-container">
@@ -12,7 +19,7 @@ export const Footer: React.FC = () => {
               <div className="line black"></div>
             </div>
             <div className="footer-block-links">
-              <Link to="/" className="regular-m footer-link">Home</Link>
+              <Link to="/" onClick={handleHomeClick} className="regular-m footer-link">Home</Link>
               <Link to="/agent" className="regular-m footer-link">AI Voice Agent</Link>
               <a href="/#services" className="regular-m footer-link">Services</a>
               <Link to="/contact" className="regular-m footer-link">Contact Us</Link>

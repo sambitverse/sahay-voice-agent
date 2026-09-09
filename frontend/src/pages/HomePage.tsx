@@ -377,20 +377,6 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
-
-
-
-      {/* Warli Tribal Art Footer Banner from footer.png */}
-      <section className="section margin-top-176-mobile-144" id="warli">
-        <div className="w-layout-blockcontainer container w-container">
-          <div className="warli-footer-container">
-            <img 
-              src="/images/footer.png" 
-              alt="SAHAY Warli Tribal Art - National Helpline Directory" 
-            />
-          </div>
-        </div>
-      </section>
     </>
   );
 };

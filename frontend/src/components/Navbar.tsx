@@ -7,16 +7,44 @@ export const Navbar: React.FC = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const handleHomeClick = (e: React.MouseEvent) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <nav className="nav">
       <div className="w-layout-blockcontainer container w-container">
         <div className="nav-wrapper">
-          <Link to="/" className={`nav-logo-wrapper w-inline-block ${isActive('/') ? 'w--current' : ''}`}>
-            <div className="nav-logo-text" style={{ width: 'auto', letterSpacing: '0.05em', fontWeight: 600 }}>SAHAY</div>
+          <Link 
+            to="/" 
+            onClick={handleHomeClick}
+            className={`nav-logo-wrapper w-inline-block ${isActive('/') ? 'w--current' : ''}`}
+            style={{ textDecoration: 'none' }}
+          >
+            <div 
+              className="nav-logo-text" 
+              style={{ 
+                width: 'auto', 
+                letterSpacing: '0.06em', 
+                fontWeight: 800, 
+                fontSize: '32px', 
+                lineHeight: 1, 
+                color: 'var(--black)' 
+              }}
+            >
+              SAHAY
+            </div>
           </Link>
           
           <div className="nav-menu-items-wrapper">
-            <Link to="/" className={`nav-menu-item ${isActive('/') ? 'w--current' : ''}`}>
+            <Link 
+              to="/" 
+              onClick={handleHomeClick}
+              className={`nav-menu-item ${isActive('/') ? 'w--current' : ''}`}
+            >
               Home
             </Link>
             <a href="/#services" className="nav-menu-item">
@@ -59,7 +87,16 @@ export const Navbar: React.FC = () => {
       {mobileMenuOpen && (
         <div className="nav-adaptation" style={{ display: 'block', backgroundColor: 'var(--white)', borderBottom: '1px solid var(--grey-8)', padding: '24px 32px' }}>
           <div className="nav-adaptation-links" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <Link to="/" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>Home</Link>
+            <Link 
+              to="/" 
+              className="nav-adaptation-link regular-xl" 
+              onClick={(e) => { 
+                handleHomeClick(e); 
+                setMobileMenuOpen(false); 
+              }}
+            >
+              Home
+            </Link>
             <a href="/#services" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>Services</a>
             <Link to="/agent" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>AI Voice Agent</Link>
             <Link to="/contact" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>Contact Us</Link>

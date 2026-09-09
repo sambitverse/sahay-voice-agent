@@ -428,29 +428,39 @@ export const UserDashboard: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Recommended Services & Actions */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '16px' }}>
-                      <div>
-                        <div className="regular-s color-grey-80 margin-bottom-8">Statutory Protections:</div>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          {item.recommended_services.map((svc, i) => (
-                            <span 
-                              key={i} 
-                              style={{ 
-                                backgroundColor: 'var(--white)', 
-                                border: '1px solid var(--grey-8)', 
-                                padding: '4px 12px', 
-                                borderRadius: '100px', 
-                                fontSize: '13px' 
-                              }}
-                            >
-                              {svc}
-                            </span>
-                          ))}
-                        </div>
+                    {/* Recommended Services */}
+                    <div style={{ marginTop: '16px' }}>
+                      <div className="regular-s color-grey-80 margin-bottom-8">Statutory Protections:</div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {item.recommended_services.map((svc, i) => (
+                          <span 
+                            key={i} 
+                            style={{ 
+                              backgroundColor: 'var(--white)', 
+                              border: '1px solid var(--grey-8)', 
+                              padding: '4px 12px', 
+                              borderRadius: '100px', 
+                              fontSize: '13px' 
+                            }}
+                          >
+                            {svc}
+                          </span>
+                        ))}
                       </div>
+                    </div>
 
-                      {/* Right to Erasure Action */}
+                    {/* Lower Right Action: Withdraw Case & Delete Audio */}
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'flex-end', 
+                        alignItems: 'center', 
+                        marginTop: '20px', 
+                        paddingTop: '16px', 
+                        borderTop: '1px solid #e2e8f0', 
+                        width: '100%' 
+                      }}
+                    >
                       <button
                         type="button"
                         onClick={() => handleDeleteComplaint(item)}
@@ -464,8 +474,9 @@ export const UserDashboard: React.FC = () => {
                           cursor: 'pointer',
                           fontWeight: 600,
                           fontSize: '13px',
-                          padding: '8px 16px',
-                          transition: 'all 0.2s'
+                          padding: '8px 18px',
+                          transition: 'all 0.2s',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
                         }}
                       >
                         {deletingId === (item.ticket_ref || item.id) ? "Erasing Data..." : "Withdraw Case & Delete Audio"}
