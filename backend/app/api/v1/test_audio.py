@@ -136,7 +136,7 @@ async def test_sample_scenario(scenario_name: str):
     repo_root = Path(__file__).resolve().parents[4]
     scenario_files = {
         "odia_threat": repo_root / "data" / "test_audio" / "odia" / "threat_01.wav",
-        "hindi_calm": repo_root / "data" / "test_audio" / "hindi" / "calm_01.wav",
+        "odia_calm": repo_root / "data" / "test_audio" / "odia" / "scenario_01_calm.wav",
         "english_distress": repo_root / "data" / "test_audio" / "english" / "distress_01.wav",
         "odia_critical": repo_root / "data" / "test_audio" / "odia" / "scenario_04_critical.wav",
         "odia_codeswitch": repo_root / "data" / "test_audio" / "odia" / "scenario_05_codeswitch.wav",
