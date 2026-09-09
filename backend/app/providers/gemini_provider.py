@@ -88,7 +88,7 @@ class GeminiProvider(LLMProvider):
             "systemInstruction": system_instruction_payload,
             "generationConfig": {
                 "temperature": 0.25,  # Low temperature for direct, fast, deterministic voice responses
-                "maxOutputTokens": 100,  # Strict token budget for sub-second decoding
+                "maxOutputTokens": 160,  # Token budget for concise spoken answers
                 "topP": 0.80
             }
         }
@@ -104,7 +104,9 @@ class GeminiProvider(LLMProvider):
                     parts = candidates[0].get("content", {}).get("parts", [])
                     if parts:
                         raw_text = parts[0].get("text", "").strip()
-                        return clean_spoken_text(raw_text)
+                        cleaned = clean_spoken_text(raw_text)
+                        if cleaned:
+                            return cleaned
 
             logger.warning(f"[GeminiProvider] API Error {response.status_code}: {response.text}")
             return self._get_fallback_response(system_instructions)
@@ -117,10 +119,17 @@ class GeminiProvider(LLMProvider):
     def _get_fallback_response(system_instructions: str) -> str:
         """Language-aware soothing response if API experiences quota or network interruptions."""
         instr_lower = (system_instructions or "").lower()
-        if "hi" in instr_lower:
-            return "Main aapki baat sun raha hoon. Kya aap abhi kisi surakshit jagah par hain? Kripya batayein aapke aas paas kaun hai."
-        elif "en" in instr_lower:
+        # Determine language from explicit cues in the system instruction.
+        # Avoid naive substring checks like 'en' which can match unrelated words (e.g., 'conversation').
+        odia_indicators = ["odia", "or-in", "spoken odia", "sambalpuri", "desia", "kui", "santali"]
+        english_indicators = ["english", "indian english", "en-in"]
+
+        if any(k in instr_lower for k in odia_indicators):
+            return "Mu apananka katha suni paruchhi. Apan bartaman surakshita sthana re achhanti ki? Daya kari kuhan tu."
+        if any(k in instr_lower for k in english_indicators):
             return "I hear you clearly. Are you currently in a safe location, and is anyone with you right now?"
+
+        # Fallback: prefer Odia for this helpline unless English is explicitly requested.
         return "Mu apananka katha suni paruchhi. Apan bartaman surakshita sthana re achhanti ki? Daya kari kuhan tu."
 
     async def stream_response(

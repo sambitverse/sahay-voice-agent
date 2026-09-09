@@ -104,28 +104,10 @@ class SarvamProvider(SpeechToTextProvider, TextToSpeechProvider):
 
         # Map regional/tribal dialects to supported Sarvam TTS models
         lc = (language_code or "or-IN").lower()
-        if any(d in lc for d in ["or", "od", "sp", "sat", "sambalpur", "santali"]):
+        if any(d in lc for d in ["or", "od", "sp", "sat", "sambalpur", "santali", "des", "kui"]):
             mapped_lang = "od-IN"
-        elif "hi" in lc:
-            mapped_lang = "hi-IN"
         elif "en" in lc:
             mapped_lang = "en-IN"
-        elif "bn" in lc:
-            mapped_lang = "bn-IN"
-        elif "te" in lc:
-            mapped_lang = "te-IN"
-        elif "mr" in lc:
-            mapped_lang = "mr-IN"
-        elif "ta" in lc:
-            mapped_lang = "ta-IN"
-        elif "gu" in lc:
-            mapped_lang = "gu-IN"
-        elif "kn" in lc:
-            mapped_lang = "kn-IN"
-        elif "pa" in lc:
-            mapped_lang = "pa-IN"
-        elif "ml" in lc:
-            mapped_lang = "ml-IN"
         else:
             mapped_lang = "od-IN"
 
@@ -163,7 +145,7 @@ class SarvamProvider(SpeechToTextProvider, TextToSpeechProvider):
             return await self.fallback.synthesize(text, language_code, speaker_gender)
 
     async def synthesize_stream(
-        self, text: str, language_code: str = "hi-IN"
+        self, text: str, language_code: str = "or-IN"
     ) -> AsyncGenerator[bytes, None]:
         """Stream synthesized audio chunks."""
         full_audio = await self.synthesize(text, language_code)

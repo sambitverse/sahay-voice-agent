@@ -12,7 +12,7 @@ class VoiceActivityDetector:
     def __init__(
         self,
         min_energy_threshold: float = 550.0,
-        silence_duration_ms: int = 500,
+        silence_duration_ms: int = 260,
         max_speech_duration_ms: int = 30000,
         sample_rate: int = 16000,
         frame_duration_ms: int = 20
@@ -118,8 +118,8 @@ class VoiceActivityDetector:
         if is_frame_speech:
             self.consecutive_speech_ms += chunk_duration_ms
             self.consecutive_silence_ms = 0.0
-            # Require at least 80ms of continuous human speech before flipping to True
-            if self.consecutive_speech_ms >= 80.0:
+            # Require at least 60ms of continuous human speech before flipping to True
+            if self.consecutive_speech_ms >= 60.0:
                 self.is_speaking = True
         else:
             self.consecutive_speech_ms = 0.0

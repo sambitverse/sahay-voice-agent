@@ -37,13 +37,10 @@ class VerifiedRAGRetriever:
         snippets = []
 
         is_odia = "or" in language_code.lower()
-        is_hindi = "hi" in language_code.lower()
 
         for doc in top_docs:
             if is_odia and doc.content_odia:
                 content = doc.content_odia
-            elif is_hindi and doc.content_hindi:
-                content = doc.content_hindi
             else:
                 content = doc.content
             

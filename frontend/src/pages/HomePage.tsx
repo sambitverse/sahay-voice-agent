@@ -153,7 +153,7 @@ export const HomePage: React.FC = () => {
                 <div className="wrapper max-width-420 margin-bottom-32">
                   <h4 className="h4 margin-bottom-16">Spatial Grounding &amp; Tribal Dialects</h4>
                   <p className="regular-m">
-                    Zero-hallucination outdoor wilderness guidance. Native normalization for Sambalpuri (Kosli), Santali (Ol Chiki), Odia, and Hindi.
+                    Zero-hallucination outdoor wilderness guidance. Native normalization for Sambalpuri (Kosli), Santali (Ol Chiki), Kui, Desia, and Odia.
                   </p>
                 </div>
                 <div className="tertiary-button">
@@ -222,7 +222,7 @@ export const HomePage: React.FC = () => {
                 <h4 className="h4 color-white margin-bottom-20">Multi-Dialect Crisis Care</h4>
                 <div className="line white margin-bottom-16"></div>
                 <p className="regular-m color-white">
-                  Seamlessly understands callers in their mother tongue—including Kosli Sambalpuri, Santali, Odia, and Hindi—ensuring everyone is understood.
+                  Seamlessly understands callers in their mother tongue—including Kosli Sambalpuri, Santali, Desia, Kui, and Odia—ensuring everyone is understood.
                 </p>
               </div>
             </div>

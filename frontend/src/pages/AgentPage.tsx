@@ -419,7 +419,7 @@ export const AgentPage: React.FC = () => {
               >
                 <input
                   className="form-input w-input"
-                  placeholder="Type your emergency or query in Odia, Sambalpuri, Santali, Hindi, or English..."
+                  placeholder="Type your emergency or query in Odia, Sambalpuri, Santali, or English..."
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}

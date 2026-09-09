@@ -108,13 +108,13 @@ async def send_otp(req: SendOtpRequest):
             sms_url = f"https://{settings.EXOTEL_SUB_DOMAIN}/v1/Accounts/{settings.EXOTEL_ACCOUNT_SID}/Sms/send.json"
             sms_body = f"Your SAHAY Helpline verification code is: {random_otp}. Valid for 10 minutes. Do not share this OTP."
 
-            async with httpx.AsyncClient(timeout=6.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:
                 res = await client.post(
                     sms_url,
                     headers={"Authorization": auth_header},
                     data={
                         "From": v_num,
-                        "To": clean_digits,
+                        "To": norm_phone,
                         "Body": sms_body
                     }
                 )
@@ -123,13 +123,26 @@ async def send_otp(req: SendOtpRequest):
                     carrier_status = "DELIVERED_CARRIER"
                     logger.info(f"[SMS Gateway] Exotel SMS successfully dispatched to {req.phone}")
                 else:
-                    carrier_status = f"CARRIER_CODE_{res.status_code}"
-                    logger.info(f"[SMS Gateway] Exotel carrier response ({res.status_code}): {res.text}")
+                    try:
+                        err_data = res.json()
+                        err_msg = err_data.get("RestException", {}).get("Message", "")
+                        err_code = err_data.get("RestException", {}).get("Code", res.status_code)
+                        carrier_status = f"EXOTEL_CODE_{err_code}"
+                        logger.info(f"[SMS Gateway] Exotel carrier notice ({err_code}): {err_msg}")
+                    except Exception:
+                        carrier_status = f"CARRIER_CODE_{res.status_code}"
+                        logger.info(f"[SMS Gateway] Exotel carrier response ({res.status_code}): {res.text}")
         except Exception as e:
             carrier_status = "GATEWAY_ERROR"
             logger.warning(f"[SMS Gateway] Exotel SMS dispatch error: {e}")
     else:
         carrier_status = "EXOTEL_CREDENTIALS_UNSET"
+
+    info_msg = (
+        f"Verification code {random_otp} generated and dispatched via Exotel SMS to {req.phone}."
+        if sms_dispatched
+        else f"Verification code {random_otp} generated for {req.phone}. (Exotel gateway status: {carrier_status})"
+    )
 
     return {
         "status": "success",
@@ -137,7 +150,7 @@ async def send_otp(req: SendOtpRequest):
         "otp": random_otp,
         "sms_sent": sms_dispatched,
         "carrier_status": carrier_status,
-        "message": f"Random verification code {random_otp} generated and dispatched via SMS to {req.phone}."
+        "message": info_msg
     }
 
 @router.post("/auth/login")
@@ -305,7 +318,7 @@ async def send_chat_message(req: ChatMessageRequest):
 
     # 3. Out-of-Scope Query Interception
     if SafetyValidator.is_out_of_scope(text):
-        lang_key = "hi" if "hi" in effective_lang else ("en" if "en" in effective_lang else "or")
+        lang_key = "en" if "en" in effective_lang else "or"
         refusal_text = SafetyValidator.OUT_OF_SCOPE_RESPONSES.get(lang_key, SafetyValidator.OUT_OF_SCOPE_RESPONSES["or"])
         return {
             "text": refusal_text,

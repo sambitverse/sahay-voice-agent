@@ -65,3 +65,46 @@ def test_wilderness_fallback_phrase():
     assert "kabata" not in fallback
     assert "phone silent" in fallback
     assert "jangala re nuchiki" in fallback
+
+
+def test_assault_and_violence_fallback_phrase():
+    manager = ConversationStateManager()
+
+    caller_text = "ghare dhuki lathi re maruchhanti mo matha phatigala"
+    fallback = manager.get_fallback_phrase(
+        language_code="or-IN",
+        state=ConversationState.PROBLEM_ASSESSMENT,
+        latest_transcript=caller_text
+    )
+
+    # Must acknowledge attack and confirm PCR 112 / medical dispatch, not generic 'are you safe'
+    assert "112" in fallback
+    assert "medical" in fallback or "police" in fallback
+
+
+def test_police_inquiry_fallback_phrase():
+    manager = ConversationStateManager()
+
+    caller_text = "police ku jaldi dakantu police kebe asiba"
+    fallback = manager.get_fallback_phrase(
+        language_code="or-IN",
+        state=ConversationState.PROBLEM_ASSESSMENT,
+        latest_transcript=caller_text
+    )
+
+    assert "112" in fallback
+    assert "baharigalaani" in fallback or "suchana" in fallback
+
+
+def test_boycott_and_water_denial_fallback_phrase():
+    manager = ConversationStateManager()
+
+    caller_text = "pani nebaku mana kale o samaja ru bahiskara kale"
+    fallback = manager.get_fallback_phrase(
+        language_code="or-IN",
+        state=ConversationState.PROBLEM_ASSESSMENT,
+        latest_transcript=caller_text
+    )
+
+    assert "aparadha" in fallback
+    assert "DLSA" in fallback or "surakshya" in fallback

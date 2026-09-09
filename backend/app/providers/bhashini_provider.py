@@ -12,22 +12,13 @@ class BhashiniProvider(SpeechToTextProvider, TextToSpeechProvider):
     """
     Government BHASHINI (National Language Translation Mission - NLTM / Dhruva API)
     provider for Multilingual Indian ASR (Speech-to-Text) and TTS (Text-to-Speech).
-    Supports Odia, Hindi, Bengali, Telugu, Tamil, Marathi, Gujarati, Kannada, Punjabi, Malayalam, and English.
+    Supports Odia and English along with native tribal and regional dialects.
     """
 
     # Bhashini short language code mappings (all lowercase)
     LANG_MAP = {
         "or-in": "or", "or": "or", "odi": "or", "odia": "or",
-        "hi-in": "hi", "hi": "hi", "hin": "hi", "hindi": "hi",
         "en-in": "en", "en": "en", "eng": "en", "english": "en",
-        "bn-in": "bn", "bn": "bn", "ben": "bn", "bengali": "bn",
-        "te-in": "te", "te": "te", "tel": "te", "telugu": "te",
-        "ta-in": "ta", "ta": "ta", "tam": "ta", "tamil": "ta",
-        "mr-in": "mr", "mr": "mr", "mar": "mr", "marathi": "mr",
-        "gu-in": "gu", "gu": "gu", "guj": "gu", "gujarati": "gu",
-        "kn-in": "kn", "kn": "kn", "kan": "kn", "kannada": "kn",
-        "ml-in": "ml", "ml": "ml", "mal": "ml", "malayalam": "ml",
-        "pa-in": "pa", "pa": "pa", "pan": "pa", "punjabi": "pa",
         "sp-in": "or", "sambalpuri": "or", "kosli": "or",
         "sat-in": "or", "santali": "or",
         "des-in": "or", "desia": "or",

@@ -55,10 +55,10 @@ def test_out_of_scope_trivia_and_sports_blocked():
     query_odia = "ଆଜି କ୍ରିକେଟ ମ୍ୟାଚ୍ କିଏ ଜିତିଲା?"
     assert SafetyValidator.is_out_of_scope(query_odia) is True
 
-    safe_text_hi, is_clean_hi = SafetyValidator.validate("IPL match was won by Mumbai", "hi", caller_transcript=query_sports)
-    assert is_clean_hi is False
-    assert "14566" in safe_text_hi
-    assert "कार्यक्षेत्र से बाहर" in safe_text_hi
+    safe_text_or, is_clean_or = SafetyValidator.validate("IPL match was won by Mumbai", "or", caller_transcript=query_sports)
+    assert is_clean_or is False
+    assert "14566" in safe_text_or
+    assert "କାର୍ଯ୍ୟ ପରିସର ବାହାରେ" in safe_text_or
 
 
 def test_in_scope_emergency_not_blocked():

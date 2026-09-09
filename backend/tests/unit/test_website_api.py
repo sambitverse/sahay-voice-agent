@@ -80,16 +80,16 @@ def test_out_of_scope_chat_message_interception():
     assert "14566" in data["text"]
     assert "cannot answer out-of-scope" in data["text"].lower() or "out-of-scope" in data["text"].lower()
 
-    # Cricket query in Hindi
+    # Cricket query in Odia
     payload_sports = {
-        "message": "Kal cricket match kaun jeeta tha?",
-        "language": "hi"
+        "message": "ଗତକାଲି କ୍ରିକେଟ ମ୍ୟାଚ୍ କିଏ ଜିତିଲା?",
+        "language": "or"
     }
     res_sports = client.post("/api/v1/chat/message", json=payload_sports)
     assert res_sports.status_code == 200
     data_sports = res_sports.json()
     assert "14566" in data_sports["text"]
-    assert "कार्यक्षेत्र से बाहर" in data_sports["text"]
+    assert "କାର୍ଯ୍ୟ ପରିସର ବାହାରେ" in data_sports["text"]
 
 
 def test_desia_and_broken_odia_chat_message():

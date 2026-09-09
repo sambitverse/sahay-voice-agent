@@ -85,6 +85,8 @@ class ClientAudioSession:
         self.is_ai_speaking = False
         self.current_tts_task: Optional[asyncio.Task] = None
         self.turn_lock = asyncio.Lock()
+        self.caller_phone: str = "+91 94371-88210"
+        self.is_language_locked: bool = False
 
     async def init_session(self) -> None:
         """Record session in database and announce to live operator dashboard."""
@@ -121,12 +123,12 @@ class ClientAudioSession:
                 self.vad.reset()
                 asyncio.create_task(self._process_utterance(utterance_bytes, websocket))
         else:
-            # End of utterance triggered after ~500ms silence hangover
-            # Require at least 350ms of recorded speech to prevent ambient clicks
-            if len(self.audio_buffer) >= int(16000 * 2 * 0.35):
-                # Trim trailing silence (~350ms) so STT doesn't waste time transcribing dead air
-                trailing_silence_bytes = int(16000 * 2 * 0.35)
-                if len(self.audio_buffer) > trailing_silence_bytes + int(16000 * 2 * 0.25):
+            # End of utterance triggered after ~260ms silence hangover
+            # Require at least 250ms of recorded speech to prevent ambient clicks
+            if len(self.audio_buffer) >= int(16000 * 2 * 0.25):
+                # Trim trailing silence (~250ms) so STT doesn't waste time transcribing dead air
+                trailing_silence_bytes = int(16000 * 2 * 0.25)
+                if len(self.audio_buffer) > trailing_silence_bytes + int(16000 * 2 * 0.15):
                     utterance_bytes = bytes(self.audio_buffer[:-trailing_silence_bytes])
                 else:
                     utterance_bytes = bytes(self.audio_buffer)
@@ -188,12 +190,9 @@ class ClientAudioSession:
                     return
 
             # 1. Parallel Speech Perception & Feature Extraction
-            # On Turn 1 (first caller turn after greeting), allow Sarvam Saaras v3 to auto-detect language across all 22 Indian languages
-            if self.turn_count == 0:
-                mapped_lang = "unknown"
-            else:
-                current_lang = self.language_router.get_session_language(self.call_id)
-                mapped_lang = "od-IN" if "or" in current_lang.value.lower() else current_lang.value
+            current_lang = self.language_router.get_session_language(self.call_id)
+            # Default to Odia ('od-IN') for NHAA helpline unless caller selects or switches
+            mapped_lang = "od-IN" if "or" in current_lang.value.lower() else current_lang.value
 
             stt_task = asyncio.create_task(self.sarvam.transcribe(audio_bytes, 16000, language_code=mapped_lang))
             acoustic_task = asyncio.create_task(self.acoustic_extractor.extract(audio_bytes, 16000))
@@ -215,20 +214,20 @@ class ClientAudioSession:
 
             # Speech confirmed! Increment valid turn count
             self.turn_count += 1
-            logger.info(f"[Session {self.call_id}] Starting turn {self.turn_count} perception: '{raw_transcript}' (Sarvam detected lang: {raw_detected_lang})")
+            logger.info(f"[Session {self.call_id}] Starting turn {self.turn_count} perception: '{raw_transcript}'")
 
             # 2. Language Routing & Dialect Normalization
             detected_lang_enum, detected_conf = self.language_router.detect_language_from_text(raw_transcript)
-            # If Sarvam detected a language with high confidence and text isn't a specialized tribal dialect
-            if raw_detected_lang and raw_detected_lang not in ["unknown", "und"] and detected_lang_enum not in [SupportedLanguage.SAMBALPURI, SupportedLanguage.SANTALI]:
-                sarvam_enum = self.language_router.normalize_language_code(raw_detected_lang)
-                active_lang = self.language_router.update_session_language(
-                    self.call_id, sarvam_enum.value, 0.92
-                )
-            else:
-                active_lang = self.language_router.update_session_language(
-                    self.call_id, detected_lang_enum.value, detected_conf
-                )
+            active_lang = self.language_router.update_session_language(
+                self.call_id, detected_lang_enum.value, detected_conf
+            )
+
+            # Broadcast real-time language detection to client and operator dashboard
+            await websocket.send_json({
+                "event": "language_detected",
+                "language": active_lang.value,
+                "confidence": detected_conf
+            })
 
             normalized_transcript = DialectBridge.normalize_dialect(raw_transcript, active_lang.value)
 
@@ -277,8 +276,10 @@ class ClientAudioSession:
             )
 
             # 8. SBAR Structured Handoff generation if High/Critical
+            # NOTE: Only produce a formal SBAR handoff and persist escalation events
+            # once the conversation has reached the ESCALATION_HANDOFF phase (Turn 6+).
             sbar_handoff = None
-            if assessment.requires_human_escalation or assessment.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+            if (assessment.requires_human_escalation or assessment.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]) and conv_state == ConversationState.ESCALATION_HANDOFF:
                 sbar_handoff = StructuredHandoffGenerator.generate_sbar_report(
                     call_id=self.call_id,
                     phone_hash=self.phone_hash,
@@ -345,7 +346,7 @@ class ClientAudioSession:
                         system_instructions=system_instructions,
                         retrieved_context=rag_context
                     ),
-                    timeout=10.0
+                    timeout=8.0
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"[Session {self.call_id}] Gemini response timed out; using state-specific protocol.")
@@ -356,6 +357,9 @@ class ClientAudioSession:
 
             # 11. Post-generation Safety Validation
             safe_response, is_valid = SafetyValidator.validate(raw_ai_response, active_lang.value, caller_transcript=normalized_transcript)
+            if not safe_response or not safe_response.strip():
+                safe_response = self.state_machine.get_fallback_phrase(active_lang.value, conv_state, latest_transcript=normalized_transcript)
+
             self.conversation_history.append({"role": "agent", "content": safe_response})
             self.full_transcript.append({"role": "agent", "content": safe_response})
 
@@ -385,7 +389,7 @@ class ClientAudioSession:
             self.is_ai_speaking = True
             tts_audio = await self.sarvam.synthesize(safe_response, active_lang.value)
 
-            if self.is_ai_speaking and tts_audio:
+            if tts_audio:
                 b64_audio = base64.b64encode(tts_audio).decode("utf-8")
                 await websocket.send_json({
                     "event": "media",
@@ -393,12 +397,17 @@ class ClientAudioSession:
                     "sample_rate": 16000
                 })
 
-                # Dynamic safety watchdog: auto-clear speaking state after audio duration + buffer
-                approx_duration = max(1.0, len(tts_audio) / 32000.0)
-                async def _auto_clear_speaking():
-                    await asyncio.sleep(approx_duration + 0.3)
+                # If the websocket adapter already does realtime playback pacing (e.g. ExotelAdapter),
+                # the audio has completed playback by the time send_json returns!
+                if hasattr(websocket, "_streaming_lock") or hasattr(websocket, "stream_sid"):
                     self.is_ai_speaking = False
-                asyncio.create_task(_auto_clear_speaking())
+                else:
+                    # Dynamic safety watchdog for browser client: auto-clear speaking state after audio duration
+                    approx_duration = min(4.0, max(1.0, len(tts_audio) / 32000.0))
+                    async def _auto_clear_speaking():
+                        await asyncio.sleep(approx_duration + 0.2)
+                        self.is_ai_speaking = False
+                    asyncio.create_task(_auto_clear_speaking())
             else:
                 self.is_ai_speaking = False
 
@@ -431,6 +440,10 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
     logger.info(f"[WebSocket] Connected client session: {call_id}")
 
     session = ClientAudioSession(call_id)
+    phone_param = websocket.query_params.get("phone")
+    if phone_param:
+        session.caller_phone = phone_param
+        session.phone_hash = SupabaseManager.hash_phone(phone_param)
     await session.init_session()
 
     try:
@@ -456,6 +469,13 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
                 "payload": cached_b64,
                 "sample_rate": 16000
             })
+            # Safety watchdog for initial cached greeting
+            cached_bytes = base64.b64decode(cached_b64)
+            approx_dur = min(3.5, max(1.5, len(cached_bytes) / 32000.0))
+            async def _auto_clear_cached_greeting():
+                await asyncio.sleep(approx_dur + 0.2)
+                session.is_ai_speaking = False
+            asyncio.create_task(_auto_clear_cached_greeting())
         else:
             try:
                 greeting_audio = await session.sarvam.synthesize(_CACHED_GREETING_TEXT, "or-IN")
@@ -473,6 +493,11 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
                         "payload": b64_greeting,
                         "sample_rate": 16000
                     })
+                    approx_dur = min(3.5, max(1.5, len(greeting_audio) / 32000.0))
+                    async def _auto_clear_synth_greeting():
+                        await asyncio.sleep(approx_dur + 0.2)
+                        session.is_ai_speaking = False
+                    asyncio.create_task(_auto_clear_synth_greeting())
             except Exception as e:
                 logger.warning(f"[WebSocket] Initial greeting synthesis warning: {e}")
 
@@ -514,12 +539,17 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
 
                 elif event == "set_language":
                     lang = data.get("language", "or-IN")
-                    active_l = session.language_router.set_session_language(call_id, lang)
-                    logger.info(f"[WebSocket] User selected language: {active_l.value} for session: {call_id}")
-                    await websocket.send_json({
-                        "event": "language_updated",
-                        "language": active_l.value
-                    })
+                    if lang and lang.lower() in ("auto", "unknown", "auto-detect"):
+                        session.is_language_locked = False
+                        logger.info(f"[WebSocket] Set auto language detection for session: {call_id}")
+                    else:
+                        active_l = session.language_router.set_session_language(call_id, lang)
+                        session.is_language_locked = True
+                        logger.info(f"[WebSocket] User selected language: {active_l.value} for session: {call_id}")
+                        await websocket.send_json({
+                            "event": "language_updated",
+                            "language": active_l.value
+                        })
 
                 elif event in ("stop", "commit"):
                     logger.info(f"[WebSocket] Client requested {event} for {call_id}")
@@ -553,7 +583,7 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
 
         # 2. Precautionary Prank & Spam Filter
         duration_s = len(session.caller_audio_record) / 32000.0
-        user_texts = [t["content"] for t in session.full_transcript if t.get("role") == "user"]
+        user_texts = [t["content"] for t in session.full_transcript if t.get("role") in ("caller", "user")]
         prank_res = PrankFilter.evaluate(
             call_id=call_id,
             transcripts=user_texts,
@@ -562,6 +592,8 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
             safety_flags=session.distress_state.safety_flags.__dict__ if hasattr(session.distress_state, "safety_flags") else None
         )
 
+        caller_num = getattr(session, "caller_phone", None) or "+91 94371-88210"
+
         if prank_res.is_legitimate and prank_res.ticket_id:
             summary = user_texts[0] if user_texts else "Citizen Emergency Triage Session"
             complaint = session.db.register_complaint(
@@ -569,11 +601,12 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
                 ticket_id=prank_res.ticket_id,
                 summary=summary,
                 risk_level=session.distress_state.current_level.value,
+                caller_number=caller_num,
                 language=session.language_router.get_session_language(call_id).value,
                 recording_url=f"/api/v1/recordings/{call_id}.wav"
             )
             await broadcaster.broadcast("complaint_registered", complaint)
-            logger.info(f"[Session {call_id}] Registered genuine citizen complaint: {prank_res.ticket_id}")
+            logger.info(f"[Session {call_id}] Registered genuine citizen complaint: {prank_res.ticket_id} for {caller_num}")
         else:
             logger.info(f"[Session {call_id}] Prank/Spam filtered out: {prank_res.reason}")
 

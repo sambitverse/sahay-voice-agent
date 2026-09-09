@@ -55,14 +55,12 @@ class SafetyValidator:
     ]
 
     OUT_OF_SCOPE_RESPONSES = {
-        "or": "ଏହା ଜାତୀୟ ହେଲ୍ପଲାଇନ୍ ୧୪୫୬୬ (National Helpline Against Atrocities) ଅଟେ। ଆମେ କେବଳ ଅତ୍ୟାଚାର, ଭେଦଭାବ, ଜରୁରୀକାଳୀନ ସୁରକ୍ଷା ଓ ଆଇନଗତ ସହାୟତା ପାଇଁ କାର୍ଯ୍ୟ କରୁଛୁ। ଏହି ପ୍ରଶ୍ନ ଆମ କାର୍ଯ୍ୟ ପରିସର ବାହାରେ ଅଟେ।",
-        "hi": "यह राष्ट्रीय अत्याचार निवारण हेल्पलाइन 14566 है। हम केवल अत्याचार, भेदभाव, आपातकालीन सुरक्षा और कानूनी सहायता से संबंधित मामलों में सहायता करते हैं। यह प्रश्न हमारे कार्यक्षेत्र से बाहर है।",
+        "or": "ଏହା ଜାତୀୟ ହେଲ୍ପଲାଇନ୍ ୧୪୫୬୬ (14566 - National Helpline Against Atrocities) ଅଟେ। ଆମେ କେବଳ ଅତ୍ୟାଚାର, ଭେଦଭାବ, ଜରୁରୀକାଳୀନ ସୁରକ୍ଷା ଓ ଆଇନଗତ ସହାୟତା ପାଇଁ କାର୍ଯ୍ୟ କରୁଛୁ। ଏହି ପ୍ରଶ୍ନ ଆମ କାର୍ଯ୍ୟ ପରିସର ବାହାରେ ଅଟେ।",
         "en": "This is the National Helpline Against Atrocities (14566). We provide assistance strictly for atrocities, caste discrimination, emergency safety, and statutory victim rights. We cannot answer out-of-scope inquiries."
     }
 
     SAFE_FALLBACKS = {
         "or": "Namaskar. Apan ebe surakshita achhanti ki? Apananka surakhya amara prathama kartavya. Daya kari kuhan tu ame kemiti sahajya kariparibu.",
-        "hi": "Namaskar. Kya aap abhi surakshit hain? Aapki suraksha hamari pehli prathmikta hai. Kripya batayein hum aapki kya sahayata kar sakte hain.",
         "en": "Hello. Are you currently in a safe place? Your immediate safety is our priority. Please let us know how we can support you."
     }
 
@@ -103,13 +101,13 @@ class SafetyValidator:
 
         # 0. Check if caller query was out of scope
         if caller_transcript and cls.is_out_of_scope(caller_transcript):
-            lang_key = "hi" if "hi" in language_code.lower() else ("en" if "en" in language_code.lower() else "or")
+            lang_key = "en" if "en" in language_code.lower() else "or"
             logger.warning(f"[SafetyValidator] Out-of-scope query blocked from caller transcript: {caller_transcript[:50]}")
             return cls.OUT_OF_SCOPE_RESPONSES.get(lang_key, cls.OUT_OF_SCOPE_RESPONSES["en"]), False
 
         # Check if generated response is answering out of scope topics
         if cls.is_out_of_scope(text):
-            lang_key = "hi" if "hi" in language_code.lower() else ("en" if "en" in language_code.lower() else "or")
+            lang_key = "en" if "en" in language_code.lower() else "or"
             logger.warning(f"[SafetyValidator] Out-of-scope response generation intercepted: {text[:50]}")
             return cls.OUT_OF_SCOPE_RESPONSES.get(lang_key, cls.OUT_OF_SCOPE_RESPONSES["en"]), False
 
@@ -144,9 +142,7 @@ class SafetyValidator:
             for indoor_term in ["kabata band", "darwaza band", "ghara bhitare", "kamre", "lock the door", "lock door", "କବାଟ ବନ୍ଦ", "ଦରୱାଜା ବନ୍ଦ", "ଘର ଭିତରେ"]:
                 if indoor_term in lower:
                     logger.warning(f"[SafetyValidator] Spatial hallucination blocked: indoor term '{indoor_term}' during wilderness scenario.")
-                    if "hi" in language_code.lower():
-                        return "Aap shant rahein, phone silent karein aur jungle mein chhipe rahein. Police ko turant suchit kiya ja raha hai.", False
-                    elif "en" in language_code.lower():
+                    if "en" in language_code.lower():
                         return "Please stay calm, silence your phone, and remain hidden in the trees. Emergency police are being alerted.", False
                     else:
                         return "Apan shanta ruhantu, phone silent karantu o jangala re nuchiki ruhantu. Police ku turant suchana diajauchi.", False

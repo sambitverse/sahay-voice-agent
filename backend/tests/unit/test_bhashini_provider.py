@@ -38,9 +38,9 @@ async def test_hybrid_speech_provider_fallback_to_mock():
 def test_bhashini_language_code_mapping():
     provider = BhashiniProvider(auth_token="dummy")
     assert provider._map_language("or-IN") == "or"
-    assert provider._map_language("hi-IN") == "hi"
-    assert provider._map_language("bn-IN") == "bn"
-    assert provider._map_language("te-IN") == "te"
+    assert provider._map_language("hi-IN") == "or"
+    assert provider._map_language("en-IN") == "en"
+    assert provider._map_language("sp-IN") == "or"
     assert provider._map_language("des-IN") == "or"
     assert provider._map_language("kui-IN") == "or"
     assert provider._map_language("unknown") == "or"

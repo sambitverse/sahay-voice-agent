@@ -21,7 +21,7 @@ class TextToSpeechProvider(ABC):
 
     @abstractmethod
     async def synthesize(
-        self, text: str, language_code: str = "hi-IN", speaker_gender: str = "female"
+        self, text: str, language_code: str = "or-IN", speaker_gender: str = "female"
     ) -> bytes:
         """
         Synthesize text into audio bytes (WAV/MP3/PCM).
@@ -30,7 +30,7 @@ class TextToSpeechProvider(ABC):
 
     @abstractmethod
     async def synthesize_stream(
-        self, text: str, language_code: str = "hi-IN"
+        self, text: str, language_code: str = "or-IN"
     ) -> AsyncGenerator[bytes, None]:
         """
         Stream synthesized audio chunks as they become available.

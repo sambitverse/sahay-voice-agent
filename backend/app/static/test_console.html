@@ -337,9 +337,6 @@
         <button type="button" id="langBtnSantali" class="tag-pill" style="cursor: pointer; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; font-weight: 400; padding: 6px 14px;" onclick="selectLanguage('sat-IN')">
           🏹 ᱥᱟᱱᱛᱟᱲᱤ (Santali)
         </button>
-        <button type="button" id="langBtnHindi" class="tag-pill" style="cursor: pointer; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; font-weight: 400; padding: 6px 14px;" onclick="selectLanguage('hi-IN')">
-          हिंदी (Hindi)
-        </button>
         <button type="button" id="langBtnEnglish" class="tag-pill" style="cursor: pointer; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; font-weight: 400; padding: 6px 14px;" onclick="selectLanguage('en-IN')">
           English
         </button>
@@ -378,7 +375,7 @@
 
       <div class="barge-in-tip">
         <span>⚡</span>
-        <span><strong>Hands-Free Voice First</strong>: Speak in <strong>Odia, Hindi, or English</strong>. The AI auto-detects language & vocal distress, and speaks back aloud in real time. You can interrupt the AI at any time.</span>
+        <span><strong>Hands-Free Voice First</strong>: Speak in <strong>Odia or English</strong>. The AI auto-detects language & vocal distress, and speaks back aloud in real time. You can interrupt the AI at any time.</span>
       </div>
     </div>
 
@@ -898,8 +895,8 @@
             speechBuffer.push(pcm16); // Include trailing context
             const pauseElapsed = Date.now() - silenceStart;
 
-            // Rapid 1.0-Second Turn Commitment (PS 26093 High Responsiveness):
-            if (pauseElapsed > 1000) {
+            // Rapid 450ms Turn Commitment for sub-second conversational latency:
+            if (pauseElapsed > 450) {
               isSpeaking = false;
               // Minimum utterance filter: Require at least 3 frames (~384ms) of speech
               if (speechBuffer.length >= 3) {
@@ -1098,10 +1095,9 @@
       const btnOdia = document.getElementById("langBtnOdia");
       const btnSambalpuri = document.getElementById("langBtnSambalpuri");
       const btnSantali = document.getElementById("langBtnSantali");
-      const btnHindi = document.getElementById("langBtnHindi");
       const btnEnglish = document.getElementById("langBtnEnglish");
 
-      const allBtns = [btnAuto, btnOdia, btnSambalpuri, btnSantali, btnHindi, btnEnglish].filter(Boolean);
+      const allBtns = [btnAuto, btnOdia, btnSambalpuri, btnSantali, btnEnglish].filter(Boolean);
       allBtns.forEach(b => {
         b.style.background = "rgba(255, 255, 255, 0.05)";
         b.style.borderColor = "rgba(255, 255, 255, 0.15)";
@@ -1129,11 +1125,6 @@
         btnSantali.style.borderColor = "#eab308";
         btnSantali.style.color = "#fde047";
         btnSantali.style.fontWeight = "700";
-      } else if (langCode === "hi-IN" && btnHindi) {
-        btnHindi.style.background = "rgba(245, 158, 11, 0.2)";
-        btnHindi.style.borderColor = "#f59e0b";
-        btnHindi.style.color = "#f59e0b";
-        btnHindi.style.fontWeight = "700";
       } else if (btnEnglish) {
         btnEnglish.style.background = "rgba(16, 185, 129, 0.2)";
         btnEnglish.style.borderColor = "#10b981";

@@ -101,7 +101,7 @@ const RESOURCES: ResourceItem[] = [
     title: 'Spatial Grounding & Tribal Dialects',
     category: 'Linguistic Intelligence & Wilderness Safety',
     badge: 'Kui, Desia, Kosli, Santali',
-    overview: 'Zero-hallucination outdoor wilderness guidance. Native dialect normalization for Sambalpuri (Kosli), Santali (Ol Chiki), Kui (Kandha tribal), Desia (Koraput), Odia, and Hindi.',
+    overview: 'Zero-hallucination outdoor wilderness guidance. Native dialect normalization for Sambalpuri (Kosli), Santali (Ol Chiki), Kui (Kandha tribal), Desia (Koraput), and Odia.',
     faqs: [
       {
         question: 'How does Spatial Grounding prevent dangerous AI hallucinations?',
@@ -109,7 +109,7 @@ const RESOURCES: ResourceItem[] = [
       },
       {
         question: 'Which indigenous tribal dialects are natively supported?',
-        answer: 'SAHAY includes verified phonetic and lexical models for Kui (Kandha tribal), Desia (Koraput / Southwestern Odia), Sambalpuri (Kosli), and Santali (Ol Chiki script and Romanized phonetics), alongside standard Odia and Hindi.'
+        answer: 'SAHAY includes verified phonetic and lexical models for Kui (Kandha tribal), Desia (Koraput / Southwestern Odia), Sambalpuri (Kosli), and Santali (Ol Chiki script and Romanized phonetics), alongside standard Odia and English.'
       },
       {
         question: 'Does the system understand broken or regional colloquial Odia?',

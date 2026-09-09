@@ -16,7 +16,7 @@ class MockSpeechProvider(SpeechToTextProvider, TextToSpeechProvider):
         self.mock_index = 0
         self.sample_phrases = [
             ("Mu bahut darichhi. Se mate dhamaka deichhi.", "or", 0.94),
-            ("Mujhe emergency help chahiye, yahan ladai ho rahi hai.", "hi", 0.96),
+            ("Mote emergency sahajya darkar, eithi marpit chalichi.", "or", 0.96),
             ("I need legal assistance regarding caste harassment.", "en", 0.92),
             ("Se mane mo ghara bhangideba boli dhamaka karuchhanti.", "or", 0.95),
             ("Sir I am scared, please help immediately.", "en", 0.90)
@@ -32,7 +32,7 @@ class MockSpeechProvider(SpeechToTextProvider, TextToSpeechProvider):
         return text, lang, conf
 
     async def synthesize(
-        self, text: str, language_code: str = "hi-IN", speaker_gender: str = "female"
+        self, text: str, language_code: str = "or-IN", speaker_gender: str = "female"
     ) -> bytes:
         """Generate a valid PCM WAV audio byte stream (gentle 440Hz tone simulation)."""
         logger.info(f"[MockSpeechProvider] Synthesizing ({language_code}): '{text[:50]}...'")
@@ -55,7 +55,7 @@ class MockSpeechProvider(SpeechToTextProvider, TextToSpeechProvider):
         return buffer.getvalue()
 
     async def synthesize_stream(
-        self, text: str, language_code: str = "hi-IN"
+        self, text: str, language_code: str = "or-IN"
     ) -> AsyncGenerator[bytes, None]:
         """Stream simulated audio in chunks."""
         full_audio = await self.synthesize(text, language_code)

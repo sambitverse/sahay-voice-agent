@@ -11,22 +11,10 @@ def test_native_script_detection():
     assert lang == SupportedLanguage.ODIA
     assert conf >= 0.90
 
-    # Devanagari script (Hindi)
-    hindi_text = "मुझे बहुत डर लग रहा है। उसने मुझे धमकी दी है।"
-    lang, conf = router.detect_language_from_text(hindi_text)
-    assert lang == SupportedLanguage.HINDI
-    assert conf >= 0.90
-
-    # Bengali script
-    bengali_text = "আমি খুব ভয়ে আছি। আমাকে বাঁচান।"
-    lang, conf = router.detect_language_from_text(bengali_text)
-    assert lang == SupportedLanguage.BENGALI
-    assert conf >= 0.90
-
-    # Telugu script
-    telugu_text = "నాకు చాలా భయంగా ఉంది. నన్ను రక్షించండి."
-    lang, conf = router.detect_language_from_text(telugu_text)
-    assert lang == SupportedLanguage.TELUGU
+    # Ol Chiki script (Santali)
+    santali_text = "ᱟᱹᱰᱤ ᱵᱚᱛᱚᱨ ᱜᱮ ᱟᱹᱭᱠᱟᱹᱣᱜ ᱠᱟᱱᱟ"
+    lang, conf = router.detect_language_from_text(santali_text)
+    assert lang == SupportedLanguage.SANTALI
     assert conf >= 0.90
 
 
@@ -37,11 +25,6 @@ def test_phonetic_romanized_detection():
     odia_roman = "Mu bahut darichhi se mate marideba boli dhamaka deichhi"
     lang, conf = router.detect_language_from_text(odia_roman)
     assert lang == SupportedLanguage.ODIA
-
-    # Romanized Hindi
-    hindi_roman = "Mujhe bahut darr lag raha hai police ki madad chahiye"
-    lang, conf = router.detect_language_from_text(hindi_roman)
-    assert lang == SupportedLanguage.HINDI
 
     # Romanized Sambalpuri
     sp_roman = "kanje godauchhan mor pache bana dongar re nuchi achhe"
@@ -131,13 +114,16 @@ def test_session_language_update():
     # Initially defaults
     assert router.get_session_language(call_id) == SupportedLanguage.ODIA
 
-    # High confidence Hindi updates session
-    active = router.update_session_language(call_id, "hi-IN", 0.95)
-    assert active == SupportedLanguage.HINDI
-    assert router.get_session_language(call_id) == SupportedLanguage.HINDI
+    # High confidence Sambalpuri updates session
+    active = router.update_session_language(call_id, "sp-IN", 0.95)
+    assert active == SupportedLanguage.SAMBALPURI
+    assert router.get_session_language(call_id) == SupportedLanguage.SAMBALPURI
 
-    # Update to Telugu
-    active_te = router.update_session_language(call_id, "te-IN", 0.95)
-    assert active_te == SupportedLanguage.TELUGU
-    assert router.get_session_language(call_id) == SupportedLanguage.TELUGU
+    # Unsupported / removed language codes (like hi-IN) normalize to default ODIA
+    assert router.normalize_language_code("hi-IN") == SupportedLanguage.ODIA
+
+    # Update to English
+    active_en = router.update_session_language(call_id, "en-IN", 0.95)
+    assert active_en == SupportedLanguage.ENGLISH
+    assert router.get_session_language(call_id) == SupportedLanguage.ENGLISH
 

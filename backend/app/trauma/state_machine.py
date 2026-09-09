@@ -8,7 +8,7 @@ to prevent inappropriate hallucinations (e.g. telling forest callers to lock doo
 """
 
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -108,10 +108,10 @@ class ConversationStateManager:
         risk_level: str,
         latest_transcript: str = ""
     ) -> str:
-        """Returns prompt guidance conditioned on current conversation phase and spatial environment."""
+        """Returns prompt guidance conditioned on current conversation phase and situational context."""
         lc = (language_code or "or-IN").lower()
 
-        # Language guidance for all Sarvam supported languages + dialects
+        # Language guidance: Odia primary, regional dialects, or Indian English (Zero Hindi)
         if "sp" in lc or "sambalpur" in lc or "kosli" in lc:
             base_lang_instruction = "You MUST speak in natural, empathetic, spoken SAMBALPURI / KOSLI ODIA. Directly address the caller's specific situation."
         elif "sat" in lc or "santali" in lc:
@@ -120,56 +120,21 @@ class ConversationStateManager:
             base_lang_instruction = "You MUST speak in natural, empathetic, spoken DESIA / KORAPUT ODIA (or simple reassuring Odia). Directly address the caller's specific situation."
         elif "kui" in lc or "kandha" in lc:
             base_lang_instruction = "You MUST speak in simple, reassuring ODIA with Kandha/Kui contact vocabulary. Directly address the caller's specific situation."
-        elif "or" in lc or "od" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken ODIA. Directly address the caller's specific problem."
-        elif "hi" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken HINDI. Directly address the caller's specific problem."
-        elif "bn" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken BENGALI. Directly address the caller's specific problem."
-        elif "te" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken TELUGU. Directly address the caller's specific problem."
-        elif "mr" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken MARATHI. Directly address the caller's specific problem."
-        elif "ta" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken TAMIL. Directly address the caller's specific problem."
-        elif "gu" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken GUJARATI. Directly address the caller's specific problem."
-        elif "kn" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken KANNADA. Directly address the caller's specific problem."
-        elif "pa" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken PUNJABI. Directly address the caller's specific problem."
-        elif "ml" in lc:
-            base_lang_instruction = "You MUST speak in natural, empathetic, spoken MALAYALAM. Directly address the caller's specific problem."
-        else:
+        elif "en" in lc:
             base_lang_instruction = "You MUST speak in natural, empathetic, spoken INDIAN ENGLISH. Directly address the caller's specific problem."
+        else:
+            base_lang_instruction = "You MUST speak in natural, empathetic, spoken ODIA. Directly address the caller's specific problem."
 
         # Detect spatial environment from the caller's speech
         env = self.detect_environment(latest_transcript)
         if env["wilderness"] or env["pursuit"]:
             spatial_mandate = (
                 "CRITICAL SPATIAL MANDATE — CALLER IS OUTDOORS IN JUNGLE/WILDERNESS OR BEING PURSUED:\n"
-                "- ABSOLUTE BAN: NEVER tell the caller to lock house doors, stay in a room, or close windows! There are no doors in a forest or outdoor pursuit.\n"
-                "- REAL-WORLD SURVIVAL DIRECTIVES:\n"
-                "  1. Tell them to stay low, concealed in the bushes/trees, and stay calm and quiet.\n"
-                "  2. Instruct them to immediately put their phone on SILENT mode so sounds or screen light do not give away their position to pursuers.\n"
-                "  3. Ask them in a gentle whisper to state their approximate location or any nearby landmark (river, road, village border, electricity tower) so emergency police (112) can locate them.\n"
-                "  4. Confirm that emergency rescue is being dispatched right now to their vicinity."
-            )
-        elif env["indoors"]:
-            spatial_mandate = (
-                "SPATIAL MANDATE — CALLER IS INDOORS:\n"
-                "- Advise them to bolt and lock the doors, stay away from windows, turn off room lights, and stay silent while police is coordinated."
-            )
-        elif env["outdoor_public"]:
-            spatial_mandate = (
-                "SPATIAL MANDATE — CALLER IS ON A ROAD / PUBLIC STREET:\n"
-                "- Advise them to move toward a populated public area, police outpost, or well-lit shop if safe, or take shelter while 112 is dispatched."
+                "- ABSOLUTE BAN: NEVER tell the caller to lock house doors, stay in a room, or close windows!\n"
+                "- Tell them to stay low, keep phone on SILENT mode, and reassure them emergency police are being alerted."
             )
         else:
-            spatial_mandate = (
-                "SPATIAL MANDATE:\n"
-                "- Match all physical safety advice directly to the caller's stated location. Do not invent indoor doors or furniture unless caller explicitly said they are at home."
-            )
+            spatial_mandate = ""
 
         state_guidance = {
             ConversationState.GREETING: (
@@ -206,30 +171,21 @@ class ConversationStateManager:
         }
 
         guidance = state_guidance.get(state, state_guidance[ConversationState.PROBLEM_ASSESSMENT])
+        spatial_section = f"{spatial_mandate}\n\n" if spatial_mandate else ""
 
         return (
             f"{base_lang_instruction}\n"
             f"Assessed Risk Tier: {risk_level}\n"
             f"Conversation Phase: {state.value}\n\n"
-            f"{spatial_mandate}\n\n"
-            f"TRIBAL DIALECT & BROKEN ODIA COMPREHENSION DIRECTIVE:\n"
-            f"Many callers speak broken Odia, Desia, Sambalpuri, Kui, or Santali-influenced colloquial phrasing "
-            f"(e.g., 'mor pache padila', 'godauche', 'bhay laguche', 'pani mana', 'chua mari', 'bachao dada').\n"
-            f"- NEVER correct, judge, or fail to acknowledge their dialect or grammar.\n"
-            f"- Grasp their core distress and urgent needs immediately, and respond in simple, reassuring, spoken phrasing.\n\n"
-            f"STRICT OUT-OF-SCOPE BAN (NO CODING, TRIVIA, CHIT-CHAT, ENTERTAINMENT):\n"
-            f"You are SOLELY the voice assistant for the National Helpline Against Atrocities (14566).\n"
-            f"- If the caller asks for coding, programming (Python, JS, etc.), sports, cinema, weather, jokes, or general trivia, "
-            f"politely refuse and state that this helpline is dedicated strictly to atrocities, caste discrimination, and emergency citizen safety.\n"
-            f"- NEVER write code or entertain out-of-scope discussions.\n\n"
+            f"{spatial_section}"
             f"MANDATE — SITUATION & SEVERITY MATCHING (NO DISCONNECTED HALLUCINATIONS):\n"
             f"You are the voice assistant for the National Helpline Against Atrocities (NHAA - 14566) under the Ministry of Social Justice and Empowerment.\n"
             f"You MUST analyze the caller's actual words and dynamically adapt your response to their exact situation:\n"
-            f"1. CATEGORY 1: CRITICAL EMERGENCY (Immediate physical attack, weapons, severe bleeding, ongoing mob violence, active pursuit):\n"
+            f"1. CATEGORY 1: CRITICAL EMERGENCY (Immediate physical attack, weapons, severe bleeding, ongoing mob violence):\n"
+            f"   - Prioritize physical safety directives (e.g. lock doors if indoors, or stay hidden if outdoors).\n"
             f"   - Keep response calm, urgent, and concise. State that emergency police/medical units are being coordinated right now.\n"
-            f"   - Follow the spatial mandate above (never mention locking doors if in forest or outdoors).\n"
             f"2. CATEGORY 2: CASTE ATROCITY / DISCRIMINATION / SOCIAL BOYCOTT / HARASSMENT:\n"
-            f"   - Situations of caste abuse, eviction, boycott ('samaja ru bahiskara', denial of water, 'dak nu mana'), threats ('dhamki'), police refusal to register FIR.\n"
+            f"   - Situations of caste abuse, eviction, boycott ('samaja ru bahiskara', denial of water), threats ('dhamki'), police refusal to register FIR.\n"
             f"   - Validate their pain empathetically with direct reference to their specific incident.\n"
             f"   - Ask focused investigative questions about the perpetrators, location, and injuries.\n"
             f"   - Inform them of their rights under the SC/ST (PoA) Act (Zero FIR, Section 15A witness/victim protection, free legal aid).\n"
@@ -249,51 +205,108 @@ class ConversationStateManager:
             f"6. SPOKEN SPEECH ONLY: No markdown formatting (**bold**, # headers, bullet points). Maximum 18 to 22 words (1 to 2 crisp, compassionate sentences). Keep it brief, natural, and immediate for voice conversation."
         )
 
-    def get_fallback_phrase(self, language_code: str, state: ConversationState, latest_transcript: str = "") -> str:
-        """Provide safe, conversational fallback phrases if LLM call is delayed."""
-        lang = (language_code or "or-IN").lower()
-        env = self.detect_environment(latest_transcript)
+    @classmethod
+    def get_fallback_phrase(
+        cls,
+        language_code: Any = "or-IN",
+        state: Any = ConversationState.PROBLEM_ASSESSMENT,
+        latest_transcript: str = "",
+        *args,
+        **kwargs
+    ) -> str:
+        """
+        Provide safe, conversational fallback phrases if LLM call is delayed, dynamically adapted to caller situation.
+        Accepts both:
+          1. (language_code, state, latest_transcript)
+          2. (language_code="or-IN", state=..., latest_transcript=...)
+          3. (risk_level, language_code, text)
+        """
+        # Resolve argument variations
+        if isinstance(language_code, str) and language_code.upper() in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
+            lang = str(state or "or-IN").lower()
+            conv_state = ConversationState.PROBLEM_ASSESSMENT
+            transcript = latest_transcript or (args[0] if args else "")
+        elif isinstance(state, ConversationState):
+            lang = str(language_code or "or-IN").lower()
+            conv_state = state
+            transcript = latest_transcript
+        elif isinstance(state, str) and any(c in state.lower() for c in ("or", "en", "sp", "des")):
+            lang = state.lower()
+            conv_state = ConversationState.PROBLEM_ASSESSMENT
+            transcript = latest_transcript or ""
+        else:
+            lang = str(language_code or "or-IN").lower()
+            conv_state = state if isinstance(state, ConversationState) else ConversationState.PROBLEM_ASSESSMENT
+            transcript = latest_transcript
 
-        # If caller is outdoors or in jungle pursuit, use wilderness-safe fallback
+        env = cls.detect_environment(transcript)
+        t = (transcript or "").lower()
+
+        # 1. Outdoors / Jungle / Wilderness Pursuit
         if env["wilderness"] or env["pursuit"]:
-            if "hi" in lang:
-                return "Aap shant rahein, phone silent karein aur jungle mein chhipe rahein. Kya aapke paas koi landmark ya sadak hai? Police ko suchit kiya ja raha hai."
-            elif "en" in lang:
-                return "Please stay quiet, silence your phone, and remain hidden. Can you whisper any nearby landmark or road? Emergency police are being dispatched."
+            if "en" in lang:
+                return "Please stay quiet, silence your phone, and remain hidden in the bushes. Can you whisper any nearby landmark or road? Emergency police are being dispatched."
             else:
                 return "Apan shanta ruhantu, phone silent karantu o jangala re nuchiki ruhantu. Pakhare kounasi rasta ba landmark achhi ki? Police ku suchana diajauchi."
 
-        if "hi" in lang:
-            if state == ConversationState.PROBLEM_ASSESSMENT:
-                return "Main aapki baat sun raha hoon. Kya aap abhi surakshit jagah par hain? Kripya batayein aapke aas paas kaun hai."
-            elif state == ConversationState.EMPATHY_GROUNDING:
-                return "Aap bilkul chinta na karein, main samajh raha hoon. Yeh ghatna kahan hui aur kaun aapko dhamki de raha hai?"
-            elif state == ConversationState.SUPPORT_VERIFICATION:
-                return "Kanoon ke tahat aapko poora adhikar aur suraksha milegi. Kya aapko turant police ya doctor ki madad chahiye?"
-            elif state == ConversationState.ESCALATION_HANDOFF:
-                return "Aapki poori jankari note kar li gayi hai. Main turant senior supervisor ko is call par connect kar raha hoon, line par bane rahein."
+        # 2. Physical Assault / Home Break-in / Severe Injury / Weapons
+        is_assault = any(w in t for w in [
+            "lathi", "maruchhanti", "pituchhanti", "pitile", "mada", "marpit", "ghare dhuki", "ghare pasi",
+            "rakta", "matha phatigala", "churi", "talwar", "marideba", "dalan", "dohpa", "marba",
+            "peet rahe", "mar rahe", "khoon", "beating", "attack", "bleeding", "injured",
+            "ପିଟୁଛନ୍ତି", "ମାରୁଛନ୍ତି", "ଲାଠି", "ରକ୍ତ", "ଘରେ ପଶି"
+        ])
+        if is_assault:
+            if "en" in lang:
+                return "I understand your crisis. Please stay safe, emergency police PCR 112 and medical support are being dispatched to you right now. Please tell your location."
             else:
-                return "Aapki shikayat darj ho gayi hai. Hamari team turant is par karwahi karegi, aap nishchint rahein."
-        elif "en" in lang:
-            if state == ConversationState.PROBLEM_ASSESSMENT:
+                return "Mu apananka katha bujhili. Daya kari niraapadare rahantu, aame turanta police PCR 112 o medical team pathauchu. Apananka ghara pakha landmark kuhan tu."
+
+        # 3. Police Arrival / Dispatch Inquiry
+        is_police_inquiry = any(w in t for w in [
+            "police dak", "police ku pathao", "police pathantu", "police kebe asiba", "police kab aayegi",
+            "help pathantu", "help bhejo", "madad bhejo", "send police", "police ku dakantu",
+            "ପୋଲିସ", "ଡାକନ୍ତୁ", "ପଠାନ୍ତୁ"
+        ])
+        if is_police_inquiry:
+            if "en" in lang:
+                return "Police 112 has been alerted immediately and emergency response is en route to you. Please keep your phone close and stay safe."
+            else:
+                return "Police 112 ku turanta suchana diajaichhi, police gadi apananka ade baharigalaani. Apan phone paakhare rakhantu o surakshita sthana re rahantu."
+
+        # 4. Caste Discrimination / Social Boycott / Drinking Water Denial
+        is_boycott = any(w in t for w in [
+            "pani band", "pani mana", "pani nebaku mana", "samaja ru bahiskara", "samaja bahiskara",
+            "gaon ru khedi", "khedi dele", "jati gali", "boycott", "tube well", "dak nu mana",
+            "ato khon ko orok", "ବାସନ୍ଦ", "ପାଣି ବନ୍ଦ", "ସାମାଜିକ ବାସନ୍ଦ"
+        ])
+        if is_boycott:
+            if "en" in lang:
+                return "Social boycott and denial of drinking water are serious offenses under the PoA Act. We are notifying district authorities and legal aid immediately."
+            else:
+                return "Saamajika baasanda o pani band kariba aieen anusare gurutara aparadha. Aame zilla prashasana o DLSA legal aid ku suchana deuchhu, apananku poora surakshya miliba."
+
+        # 5. General Phase-based Conversational Support
+        if "en" in lang:
+            if conv_state == ConversationState.PROBLEM_ASSESSMENT:
                 return "I hear you clearly. Are you currently in a safe location, and is anyone with you right now?"
-            elif state == ConversationState.EMPATHY_GROUNDING:
+            elif conv_state == ConversationState.EMPATHY_GROUNDING:
                 return "Please take a deep breath, I understand. Where did this incident happen, and who is threatening you?"
-            elif state == ConversationState.SUPPORT_VERIFICATION:
+            elif conv_state == ConversationState.SUPPORT_VERIFICATION:
                 return "You have full legal protection and rights under the law. Do you require immediate police intervention or medical care?"
-            elif state == ConversationState.ESCALATION_HANDOFF:
+            elif conv_state == ConversationState.ESCALATION_HANDOFF:
                 return "All details of your situation have been recorded. I am now connecting you directly to our supervisor on this line. Please stay on the line."
             else:
                 return "Your grievance has been officially registered. Our response team will coordinate action immediately."
         else:
             # Odia default
-            if state == ConversationState.PROBLEM_ASSESSMENT:
+            if conv_state == ConversationState.PROBLEM_ASSESSMENT:
                 return "Mu apananka katha suni paruchhi. Apan ebe surakshita sthana re achhanti ki? Daya kari kuhan tu apananka paakhare kie achhanti."
-            elif state == ConversationState.EMPATHY_GROUNDING:
+            elif conv_state == ConversationState.EMPATHY_GROUNDING:
                 return "Apan byasta huantu nahi, mu apananka katha bujhiparuchhi. Ehi ghatana ti kouthi ghatila, ebong kie apananku dhamaka deuchhanti?"
-            elif state == ConversationState.SUPPORT_VERIFICATION:
+            elif conv_state == ConversationState.SUPPORT_VERIFICATION:
                 return "Apananku aieen gata poora surakshya o sahajya miliba. Apananku bartaman medical sahajya na police sahajya darkar?"
-            elif state == ConversationState.ESCALATION_HANDOFF:
+            elif conv_state == ConversationState.ESCALATION_HANDOFF:
                 return "Apananka samasta bibarani o abhijoga record karaigala. Mu bartaman amara supervisor nku ehi call re sidhasalakh connect karuchhi, line re rahantu."
             else:
                 return "Apananka abhijoga darja karaigala. Amara team ehi bishayare karzyanushthana grahana karibe, apan nishchinta rahantu."
