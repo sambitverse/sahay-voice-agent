@@ -10,6 +10,12 @@
 
 The SAHAY voice agent operates as a deterministic, asynchronous Finite State Machine (FSM) engineered to eliminate hallucinations, enforce clinical safety protocols, and execute rapid emergency dispatch.
 
+### Visual Workflow & Architecture Diagram
+![SAHAY Voice Agent Workflow Diagram](file:///c:/Users/SAMBIT/OneDrive/Documents/My%20Projects/trauma-voice-agent/docs/images/sahay_agent_workflow.jpg)
+
+### Agent Decision Logic & FSM State Diagram
+![SAHAY Agent FSM State Flowchart](file:///c:/Users/SAMBIT/OneDrive/Documents/My%20Projects/trauma-voice-agent/docs/images/agent_fsm_flowchart.jpg)
+
 ```mermaid
 stateDiagram-v2
     [*] --> STATE_0_SETUP_HANDSHAKE: Telephony / WebRTC Connect

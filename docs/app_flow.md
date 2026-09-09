@@ -12,6 +12,9 @@ The SAHAY application architecture is structured into two primary portals:
 1. **Public Citizen Helpline Portal** (No mandatory login required; instant access to voice agent, case history, resources, and statutory data erasure).
 2. **Authorized Operator & Triage Console** (Role-authenticated workspace for live telemetry monitoring, queue management, and SBAR emergency dispatch).
 
+### Visual System Workflow Infographic
+![SAHAY System Architecture & Workflow Diagram](file:///c:/Users/SAMBIT/OneDrive/Documents/My%20Projects/trauma-voice-agent/docs/images/sahay_agent_workflow.jpg)
+
 ```
 SAHAY Portal Root (/)
  │
