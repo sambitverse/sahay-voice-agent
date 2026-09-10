@@ -33,6 +33,7 @@ venv.bak/
 
 # Environment Variables & Secrets
 .env*
+!.env.example
 *.pem
 *.key
 
