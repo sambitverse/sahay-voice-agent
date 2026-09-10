@@ -1,9 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { checkIsSignedIn } from './VoiceAuthModal';
+
+const isCitizenUserSignedIn = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (!checkIsSignedIn()) return false;
+
+  const userRaw = sessionStorage.getItem('sahay_user') || localStorage.getItem('sahay_user');
+  if (userRaw) {
+    try {
+      const user = JSON.parse(userRaw);
+      if (user && (user.role === 'operator' || user.badge?.includes('TRIAGE') || user.badge?.includes('OFFICER'))) {
+        return false;
+      }
+    } catch {}
+  }
+
+  if (window.location.pathname.startsWith('/operator')) {
+    return false;
+  }
+
+  return true;
+};
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const [isCitizenSignedIn, setIsCitizenSignedIn] = useState<boolean>(() => isCitizenUserSignedIn());
+
+  useEffect(() => {
+    const updateAuth = () => {
+      setIsCitizenSignedIn(isCitizenUserSignedIn());
+    };
+    updateAuth();
+    window.addEventListener('storage', updateAuth);
+    window.addEventListener('sahay_auth_changed', updateAuth);
+    return () => {
+      window.removeEventListener('storage', updateAuth);
+      window.removeEventListener('sahay_auth_changed', updateAuth);
+    };
+  }, [location.pathname]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -56,13 +92,24 @@ export const Navbar: React.FC = () => {
             <Link to="/contact" className={`nav-menu-item ${isActive('/contact') ? 'w--current' : ''}`}>
               Contact Us
             </Link>
-            <Link 
-              to="/login" 
-              className="button primary small w-button"
-              style={{ marginLeft: '12px', padding: '10px 22px', fontSize: '14px' }}
-            >
-              Sign In
-            </Link>
+            {isCitizenSignedIn ? (
+              <Link 
+                to="/user-dashboard" 
+                className="button primary small w-button"
+                style={{ marginLeft: '12px', padding: '10px 22px', fontSize: '14px' }}
+                title="User Dashboard"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <Link 
+                to="/login" 
+                className="button primary small w-button"
+                style={{ marginLeft: '12px', padding: '10px 22px', fontSize: '14px' }}
+              >
+                Sign In
+              </Link>
+            )}
           </div>
 
           <div 
@@ -100,9 +147,26 @@ export const Navbar: React.FC = () => {
             <a href="/#services" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>Services</a>
             <Link to="/agent" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>AI Voice Agent</Link>
             <Link to="/contact" className="nav-adaptation-link regular-xl" onClick={() => setMobileMenuOpen(false)}>Contact Us</Link>
-            <Link to="/login" className="button primary small w-button" onClick={() => setMobileMenuOpen(false)} style={{ textAlign: 'center', marginTop: '8px' }}>
-              Sign In
-            </Link>
+            {isCitizenSignedIn ? (
+              <Link 
+                to="/user-dashboard" 
+                className="button primary small w-button" 
+                onClick={() => setMobileMenuOpen(false)} 
+                style={{ textAlign: 'center', marginTop: '8px' }}
+                title="User Dashboard"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <Link 
+                to="/login" 
+                className="button primary small w-button" 
+                onClick={() => setMobileMenuOpen(false)} 
+                style={{ textAlign: 'center', marginTop: '8px' }}
+              >
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       )}

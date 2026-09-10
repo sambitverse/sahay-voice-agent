@@ -33,7 +33,7 @@ export const Footer: React.FC = () => {
               <div className="line black"></div>
             </div>
             <div className="footer-block-links">
-              <a href="tel:14566" className="regular-m footer-link">14566 National Helpline (Toll-Free)</a>
+              <span className="regular-m footer-link" style={{ color: 'var(--black)' }}>Toll free helpline no. is "08047283123"</span>
               <a href="tel:112" className="regular-m footer-link">112 Police Emergency PCR Dispatch</a>
               <a href="tel:14416" className="regular-m footer-link">14416 Tele-MANAS Psychological First Aid</a>
               <a href="tel:181" className="regular-m footer-link">181 Women in Distress Helpline</a>

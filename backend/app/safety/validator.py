@@ -56,11 +56,13 @@ class SafetyValidator:
 
     OUT_OF_SCOPE_RESPONSES = {
         "or": "ଏହା ଜାତୀୟ ହେଲ୍ପଲାଇନ୍ ୧୪୫୬୬ (14566 - National Helpline Against Atrocities) ଅଟେ। ଆମେ କେବଳ ଅତ୍ୟାଚାର, ଭେଦଭାବ, ଜରୁରୀକାଳୀନ ସୁରକ୍ଷା ଓ ଆଇନଗତ ସହାୟତା ପାଇଁ କାର୍ଯ୍ୟ କରୁଛୁ। ଏହି ପ୍ରଶ୍ନ ଆମ କାର୍ଯ୍ୟ ପରିସର ବାହାରେ ଅଟେ।",
+        "hi": "यह राष्ट्रीय हेल्पलाइन 14566 (National Helpline Against Atrocities) है। हम केवल अत्याचार, जातिगत भेदभाव, आपातकालीन सुरक्षा और कानूनी सहायता के लिए कार्य करते हैं। यह प्रश्न हमारे कार्यक्षेत्र से बाहर है।",
         "en": "This is the National Helpline Against Atrocities (14566). We provide assistance strictly for atrocities, caste discrimination, emergency safety, and statutory victim rights. We cannot answer out-of-scope inquiries."
     }
 
     SAFE_FALLBACKS = {
         "or": "Namaskar. Apan ebe surakshita achhanti ki? Apananka surakhya amara prathama kartavya. Daya kari kuhan tu ame kemiti sahajya kariparibu.",
+        "hi": "Namaskar. Kya aap abhi surakshit sthan par hain? Aapki suraksha hamari prathmikta hai. Kripya batayein hum aapki kya sahayata kar sakte hain.",
         "en": "Hello. Are you currently in a safe place? Your immediate safety is our priority. Please let us know how we can support you."
     }
 

@@ -47,6 +47,9 @@ data/raw/*
 *.bin
 *.onnx
 *.safetensors
+*.db
+backend/app/static/recordings/browser_*.wav
+*.gitignore.txt
 cloudflared.exe
 
 # Logs

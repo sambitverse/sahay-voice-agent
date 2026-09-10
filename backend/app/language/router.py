@@ -201,6 +201,7 @@ class LanguageRouter:
 
     # Unicode script ranges
     ODIA_SCRIPT_RANGE = re.compile(r"[\u0b00-\u0b7f]")
+    HINDI_SCRIPT_RANGE = re.compile(r"[\u0900-\u097f]")
     OL_CHIKI_SCRIPT_RANGE = re.compile(r"[\u1c50-\u1c7f]")
 
     # Phonetic transliterated keywords for romanized input
@@ -208,6 +209,12 @@ class LanguageRouter:
         "mu", "mate", "mora", "mor", "tume", "apan", "apananka", "achhi", "achhanti",
         "nahi", "katha", "darichhi", "dhamaka", "sahajya", "marideba", "bhanguchhanti",
         "ghara", "lathi", "police", "thana", "gali", "atiyachara", "marpit", "jangala", "godauchanti"
+    }
+
+    HINDI_PHONETIC_MARKERS = {
+        "main", "mujhe", "mera", "meri", "mere", "aap", "aapka", "hai", "hain", "nahi",
+        "madad", "bachao", "police", "kripya", "thana", "shikayat", "darj", "surakshit",
+        "chinta", "rahein", "bolo", "bataiye", "namaste", "dhanyawad"
     }
 
     SAMBALPURI_PHONETIC_MARKERS = {
@@ -258,6 +265,7 @@ class LanguageRouter:
                 return SupportedLanguage.SAMBALPURI, 0.95
             return SupportedLanguage.ODIA, 0.98
 
+
         # 2. Phonetic romanized lexical detection (Code-mixed / Romanized transcripts)
         words = set(re.findall(r"\b[a-zA-Z]+\b", text.lower()))
         if not words:
@@ -269,12 +277,13 @@ class LanguageRouter:
         desia_matches = len(words.intersection(self.DESIA_PHONETIC_MARKERS))
         sambalpuri_matches = len(words.intersection(self.SAMBALPURI_PHONETIC_MARKERS))
         odia_matches = len(words.intersection(self.ODIA_PHONETIC_MARKERS))
+        hindi_matches = len(words.intersection(self.HINDI_PHONETIC_MARKERS))
 
-        if santali_matches > 0 and santali_matches >= max(sambalpuri_matches, desia_matches, kui_matches, odia_matches):
+        if santali_matches > 0 and santali_matches >= max(sambalpuri_matches, desia_matches, kui_matches, odia_matches, hindi_matches):
             conf = min(0.70 + (santali_matches * 0.10), 0.98)
             return SupportedLanguage.SANTALI, conf
 
-        if kui_matches > 0 and kui_matches >= max(sambalpuri_matches, desia_matches, odia_matches):
+        if kui_matches > 0 and kui_matches >= max(sambalpuri_matches, desia_matches, odia_matches, hindi_matches):
             conf = min(0.70 + (kui_matches * 0.10), 0.98)
             return SupportedLanguage.KUI, conf
 
@@ -324,6 +333,30 @@ class LanguageRouter:
         """Retrieve current established session language."""
         return self.session_languages.get(call_id, (self.default_language, 0.50))[0]
 
+    def resolve_language(
+        self,
+        call_id: str,
+        transcript: str,
+        stt_detected_lang: Optional[str] = None,
+        language_hint: Optional[str] = None
+    ) -> SupportedLanguage:
+        """
+        Resolves the caller language by prioritizing manual hints,
+        analyzing text transcript, evaluating STT confidence, and applying session hysteresis.
+        """
+        if language_hint and language_hint.lower() not in ["auto", "unknown"]:
+            return self.set_session_language(call_id, language_hint)
+
+        detected_lang, text_conf = self.detect_language_from_text(transcript)
+
+        if text_conf >= 0.80:
+            return self.update_session_language(call_id, detected_lang.value, text_conf)
+
+        if stt_detected_lang and stt_detected_lang.lower() not in ["auto", "unknown", "und"]:
+            return self.update_session_language(call_id, stt_detected_lang, 0.70)
+
+        return self.update_session_language(call_id, detected_lang.value, text_conf)
+
     @staticmethod
     def normalize_language_code(code: str) -> SupportedLanguage:
         """Maps diverse provider language codes to standard enum."""
@@ -345,3 +378,4 @@ class LanguageRouter:
         if "unknown" in c or "und" in c:
             return SupportedLanguage.UNKNOWN
         return SupportedLanguage.ODIA
+

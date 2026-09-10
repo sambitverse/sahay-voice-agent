@@ -21,6 +21,10 @@ class SarvamProvider(SpeechToTextProvider, TextToSpeechProvider):
         self.fallback = MockSpeechProvider()
         self._client: Optional[httpx.AsyncClient] = None
 
+    def is_configured(self) -> bool:
+        """Returns True if a valid Sarvam API key is configured."""
+        return bool(self.api_key and str(self.api_key).strip() not in ["", "your_sarvam_api_key", "None"])
+
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(

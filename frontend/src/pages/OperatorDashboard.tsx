@@ -101,8 +101,30 @@ export const OperatorDashboard: React.FC = () => {
   const [dispatchSuccess, setDispatchSuccess] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<{ type: 'warning' | 'success' | 'info'; text: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'queue' | 'recordings'>('queue');
+  const [allRecordings, setAllRecordings] = useState<any[]>([]);
+  const [recordingsSearch, setRecordingsSearch] = useState<string>('');
+  const [recordingsLoading, setRecordingsLoading] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
   const navigate = useNavigate();
+
+  const fetchAllRecordings = async () => {
+    setRecordingsLoading(true);
+    try {
+      const records = await api.getVoiceRecordings(undefined, 'operator');
+      if (Array.isArray(records) && records.length > 0) {
+        setAllRecordings(records);
+      }
+    } catch (err) {
+      console.warn('Could not fetch all recordings for operator:', err);
+    } finally {
+      setRecordingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllRecordings();
+  }, []);
 
   // Keep selectedItem in sync if queue changes
   useEffect(() => {
@@ -235,9 +257,17 @@ export const OperatorDashboard: React.FC = () => {
                 }
               };
               setQueue((prev) => [newItem, ...prev]);
+              fetchAllRecordings();
               setBannerMessage({
                 type: 'success',
                 text: `[New Verified Grievance] Ticket ${data.ticket_id} registered (${data.language}). Real-time queue updated.`
+              });
+              setTimeout(() => setBannerMessage(null), 8000);
+            } else if (packet.event === 'recording_saved') {
+              fetchAllRecordings();
+              setBannerMessage({
+                type: 'info',
+                text: `[New Microphone Voice Recording] Audio recording saved to database for ${packet.data?.caller_name || 'Citizen'} (${packet.data?.caller_phone}).`
               });
               setTimeout(() => setBannerMessage(null), 8000);
             }
@@ -294,6 +324,19 @@ export const OperatorDashboard: React.FC = () => {
     ];
   };
 
+  const filteredRecordings = allRecordings.filter((rec) => {
+    if (!recordingsSearch.trim()) return true;
+    const term = recordingsSearch.toLowerCase();
+    return (
+      (rec.caller_name || '').toLowerCase().includes(term) ||
+      (rec.caller_phone || '').toLowerCase().includes(term) ||
+      (rec.caller_number || '').toLowerCase().includes(term) ||
+      (rec.call_id || '').toLowerCase().includes(term) ||
+      (rec.language || '').toLowerCase().includes(term) ||
+      (rec.summary || '').toLowerCase().includes(term)
+    );
+  });
+
   const handleDispatch = () => {
     setDispatchSuccess(true);
     setTimeout(() => {
@@ -310,41 +353,72 @@ export const OperatorDashboard: React.FC = () => {
 
   return (
     <>
-      <section className="section" style={{ paddingTop: '100px' }}>
-        <main className="hero-content" style={{ minHeight: 'auto', paddingBottom: '40px' }}>
-          <div className="w-layout-blockcontainer container w-container">
-            <div className="heading-and-button margin-bottom-40">
+      <section className="section" style={{ paddingTop: '90px', paddingBottom: '60px', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <main className="hero-content" style={{ minHeight: 'auto', paddingBottom: '20px' }}>
+          <div className="w-layout-blockcontainer container w-container" style={{ maxWidth: '1240px' }}>
+            
+            {/* Command Header */}
+            <div 
+              style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                flexWrap: 'wrap', 
+                gap: '16px', 
+                marginBottom: '28px',
+                paddingBottom: '20px',
+                borderBottom: '1px solid #e2e8f0'
+              }}
+            >
               <div>
-                <div className="regular-m margin-bottom-12" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Live National Operations
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ 
+                    fontSize: '11px', 
+                    fontWeight: 800, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.08em', 
+                    padding: '3px 10px', 
+                    borderRadius: '9999px', 
+                    backgroundColor: '#e2e8f0', 
+                    color: '#334155' 
+                  }}>
+                    Live Command Center
+                  </span>
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>National Atrocity Helpline 14566</span>
                 </div>
-                <h2 className="h2 max-width-432-mobile-320">Operator Triage Console</h2>
+                <h2 style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                  Operator Triage &amp; Telemetry Console
+                </h2>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <div style={{ 
-                  display: 'flex', 
+                  display: 'inline-flex', 
                   alignItems: 'center', 
                   gap: '8px', 
-                  padding: '6px 14px', 
-                  borderRadius: '100px', 
+                  padding: '7px 16px', 
+                  borderRadius: '9999px', 
                   backgroundColor: wsConnected ? '#f0fdf4' : '#fef2f2', 
-                  border: `1px solid ${wsConnected ? '#86efac' : '#fca5a5'}` 
+                  border: `1px solid ${wsConnected ? '#86efac' : '#fca5a5'}`,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
                 }}>
                   <span style={{ 
                     width: '8px', 
                     height: '8px', 
                     borderRadius: '50%', 
                     backgroundColor: wsConnected ? '#16a34a' : '#dc2626', 
+                    boxShadow: wsConnected ? '0 0 8px #22c55e' : '0 0 8px #ef4444',
                     display: 'inline-block' 
                   }}></span>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: wsConnected ? '#166534' : '#991b1b' }}>
-                    {wsConnected ? 'LIVE SYNC ACTIVE' : 'RECONNECTING WS'}
+                  <span style={{ fontSize: '12.5px', fontWeight: 700, letterSpacing: '0.03em', color: wsConnected ? '#166534' : '#991b1b' }}>
+                    {wsConnected ? 'LIVE WS SYNC ACTIVE' : 'RECONNECTING WS...'}
                   </span>
                 </div>
                 <button 
                   type="button" 
                   onClick={handleSignOut} 
                   className="button secondary small w-button"
+                  style={{ borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: 600 }}
                 >
                   Log Out
                 </button>
@@ -356,8 +430,8 @@ export const OperatorDashboard: React.FC = () => {
               <div
                 style={{
                   marginBottom: '24px',
-                  padding: '16px 20px',
-                  borderRadius: '8px',
+                  padding: '14px 20px',
+                  borderRadius: '10px',
                   backgroundColor: bannerMessage.type === 'warning' ? '#fffbeb' : bannerMessage.type === 'success' ? '#f0fdf4' : '#eff6ff',
                   border: `1px solid ${bannerMessage.type === 'warning' ? '#fde68a' : bannerMessage.type === 'success' ? '#86efac' : '#bfdbfe'}`,
                   color: bannerMessage.type === 'warning' ? '#92400e' : bannerMessage.type === 'success' ? '#166534' : '#1e40af',
@@ -365,180 +439,655 @@ export const OperatorDashboard: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   fontWeight: 600,
-                  fontSize: '14px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                  fontSize: '13.5px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
                 }}
               >
                 <div>{bannerMessage.text}</div>
                 <button
                   type="button"
                   onClick={() => setBannerMessage(null)}
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'inherit' }}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'inherit', padding: '0 4px' }}
                 >
                   ✕
                 </button>
               </div>
             )}
 
-            {/* Main 2-Column Grid */}
-            <div className="w-layout-grid blocks-grid-2-tablet-1-mobile-1" style={{ gridTemplateColumns: '4.5fr 7.5fr' }}>
-              {/* Left Column: Active Queue */}
-              <div>
-                <div className="regular-m margin-bottom-16" style={{ fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Incoming Priority Queue ({queue.length})</span>
-                  <span className="regular-s color-grey-80" style={{ fontWeight: 400 }}>Auto-Synced</span>
+            {/* View Selector: Segmented Control */}
+            <div 
+              style={{ 
+                display: 'inline-flex', 
+                backgroundColor: '#e2e8f0', 
+                padding: '4px', 
+                borderRadius: '12px', 
+                gap: '4px', 
+                marginBottom: '24px',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveTab('queue')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 20px',
+                  fontSize: '13.5px',
+                  fontWeight: 700,
+                  borderRadius: '9px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'queue' ? '#ffffff' : 'transparent',
+                  color: activeTab === 'queue' ? '#0f172a' : '#64748b',
+                  boxShadow: activeTab === 'queue' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>🚨 Priority Triage Queue</span>
+                <span 
+                  style={{ 
+                    backgroundColor: activeTab === 'queue' ? '#ef4444' : '#cbd5e1', 
+                    color: activeTab === 'queue' ? '#ffffff' : '#334155', 
+                    padding: '2px 8px', 
+                    borderRadius: '9999px', 
+                    fontSize: '11px', 
+                    fontWeight: 800 
+                  }}
+                >
+                  {queue.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('recordings')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 20px',
+                  fontSize: '13.5px',
+                  fontWeight: 700,
+                  borderRadius: '9px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'recordings' ? '#ffffff' : 'transparent',
+                  color: activeTab === 'recordings' ? '#0f172a' : '#64748b',
+                  boxShadow: activeTab === 'recordings' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>🎙️ All Citizen Voice Recordings</span>
+                <span 
+                  style={{ 
+                    backgroundColor: activeTab === 'recordings' ? '#0f172a' : '#cbd5e1', 
+                    color: activeTab === 'recordings' ? '#ffffff' : '#334155', 
+                    padding: '2px 8px', 
+                    borderRadius: '9999px', 
+                    fontSize: '11px', 
+                    fontWeight: 800 
+                  }}
+                >
+                  {allRecordings.length}
+                </span>
+              </button>
+            </div>
+
+            {/* TAB 1: ALL CITIZEN VOICE RECORDINGS LIST */}
+            {activeTab === 'recordings' ? (
+              <div style={{ width: '100%' }}>
+                <div 
+                  style={{ 
+                    backgroundColor: '#ffffff', 
+                    border: '1px solid #e2e8f0', 
+                    borderRadius: '16px', 
+                    padding: '24px 28px', 
+                    marginBottom: '20px',
+                    boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    flexWrap: 'wrap', 
+                    gap: '16px' 
+                  }}
+                >
+                  <div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
+                      All Citizen Voice Stream Recordings ({allRecordings.length})
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                      Central Administrative Database: Microphone voice streams across all registered citizens with playback &amp; telemetry.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Search by name, phone (+91...), dialect..."
+                        value={recordingsSearch}
+                        onChange={(e) => setRecordingsSearch(e.target.value)}
+                        style={{
+                          padding: '10px 14px 10px 36px',
+                          borderRadius: '10px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          width: '290px',
+                          backgroundColor: '#f8fafc',
+                          outline: 'none',
+                          color: '#0f172a'
+                        }}
+                      />
+                      <span style={{ position: 'absolute', left: '12px', top: '10px', fontSize: '14px', color: '#94a3b8' }}>
+                        🔍
+                      </span>
+                      {recordingsSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setRecordingsSearch('')}
+                          style={{ position: 'absolute', right: '10px', top: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '13px' }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={fetchAllRecordings}
+                      className="button secondary small w-button"
+                      style={{ borderRadius: '10px', padding: '10px 16px', fontSize: '13px', fontWeight: 600 }}
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
                 </div>
-                {queue.length === 0 ? (
-                  <div className="block padding-24-32 bg-grey-3" style={{ textAlign: 'center', color: 'var(--grey-60)' }}>
-                    No active triage cases currently in queue.
+
+                {recordingsLoading ? (
+                  <div 
+                    style={{ 
+                      backgroundColor: '#ffffff', 
+                      borderRadius: '16px', 
+                      border: '1px solid #e2e8f0', 
+                      padding: '60px 20px', 
+                      textAlign: 'center', 
+                      color: '#64748b',
+                      fontSize: '14px' 
+                    }}
+                  >
+                    Loading voice recordings database...
+                  </div>
+                ) : filteredRecordings.length === 0 ? (
+                  <div 
+                    style={{ 
+                      backgroundColor: '#ffffff', 
+                      borderRadius: '16px', 
+                      border: '1px solid #e2e8f0', 
+                      padding: '60px 20px', 
+                      textAlign: 'center', 
+                      color: '#64748b',
+                      fontSize: '14px' 
+                    }}
+                  >
+                    No voice recordings found matching your search.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {queue.map((item) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {filteredRecordings.map((rec: any) => (
                       <div
-                        key={item.id}
-                        onClick={() => setSelectedItem(item)}
-                        className="block padding-24-32 bg-grey-3"
+                        key={rec.call_id || rec.id}
                         style={{
-                          cursor: 'pointer',
-                          border: selectedItem?.id === item.id ? '2px solid var(--black)' : '1px solid var(--grey-8)',
-                          backgroundColor: selectedItem?.id === item.id ? 'var(--white)' : 'var(--grey-3)',
-                          transition: 'all 0.2s'
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '14px',
+                          padding: '20px 24px',
+                          boxShadow: '0 2px 10px -2px rgba(15, 23, 42, 0.04)',
+                          transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '12px' }}>
-                          <span className={`triage-badge ${item.risk_level.toLowerCase()}`}>
-                            {item.risk_level} • SVI {item.svi_score}
-                          </span>
-                          <span className="regular-s color-grey-80">{item.timestamp}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                              {rec.caller_name || 'Citizen Caller'}
+                            </span>
+                            <span style={{ fontSize: '12.5px', background: '#f1f5f9', color: '#334155', padding: '3px 10px', borderRadius: '6px', fontWeight: 600 }}>
+                              📞 {rec.caller_phone || rec.caller_number}
+                            </span>
+                            <span 
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                backgroundColor: rec.risk_level === 'CRITICAL' ? '#fef2f2' : rec.risk_level === 'HIGH' ? '#fffbeb' : '#f0fdf4',
+                                color: rec.risk_level === 'CRITICAL' ? '#991b1b' : rec.risk_level === 'HIGH' ? '#92400e' : '#166534',
+                                border: `1px solid ${rec.risk_level === 'CRITICAL' ? '#fecaca' : rec.risk_level === 'HIGH' ? '#fde68a' : '#bbf7d0'}`
+                              }}
+                            >
+                              {rec.risk_level || 'LOW'}
+                            </span>
+                            <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '3px 9px', borderRadius: '6px', fontWeight: 700, textTransform: 'uppercase' }}>
+                              {rec.language || 'ODIA'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 500 }}>
+                            🕒 {rec.timestamp} &bull; ⏱️ {rec.duration || `${rec.duration_seconds || 15}s`}
+                          </div>
                         </div>
-                        <h4 className="h4" style={{ fontSize: '20px', marginBottom: '8px' }}>
-                          {item.caller_number}
-                        </h4>
-                        <p className="regular-s color-grey-80">{item.channel}</p>
+
+                        {/* Summary / transcript box */}
+                        <div 
+                          style={{ 
+                            fontSize: '13.5px', 
+                            color: '#334155', 
+                            marginBottom: '14px', 
+                            lineHeight: 1.5, 
+                            backgroundColor: '#f8fafc', 
+                            padding: '12px 16px', 
+                            borderRadius: '10px', 
+                            borderLeft: '4px solid #0f172a' 
+                          }}
+                        >
+                          "{rec.summary}"
+                        </div>
+
+                        {/* Audio Player Showcase */}
+                        <div 
+                          style={{ 
+                            backgroundColor: '#f8fafc', 
+                            border: '1px solid #edf2f7',
+                            padding: '12px 18px', 
+                            borderRadius: '10px', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '14px',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🎧 Audio Playback:
+                          </span>
+                          <audio
+                            controls
+                            src={api.getRecordingAudioUrl(rec.recording_url)}
+                            style={{ flex: 1, height: '36px', minWidth: '240px' }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', fontSize: '11.5px', color: '#94a3b8' }}>
+                          <span>Session ID: <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#475569' }}>{rec.call_id}</code></span>
+                          <span>Source: SQLite Database &bull; Status: Stored</span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+            ) : (
+              /* TAB 2: PRIORITY TRIAGE QUEUE & DETAIL TELEMETRY (2-Column Grid) */
+              <div 
+                style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '380px 1fr', 
+                  gap: '24px', 
+                  alignItems: 'start' 
+                }}
+              >
+                {/* Left Column: Active Queue */}
+                <div>
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      marginBottom: '14px',
+                      padding: '0 4px'
+                    }}
+                  >
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Incoming Priority Cases ({queue.length})
+                    </span>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16a34a' }} />
+                      Auto-Synced
+                    </span>
+                  </div>
 
-              {/* Right Column: Telemetry & SBAR */}
-              {selectedItem ? (
-                <div className="block padding-24-32 bg-grey-3">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '16px' }}>
-                    <div>
-                      <span className={`triage-badge ${selectedItem.risk_level.toLowerCase()}`}>
-                        {selectedItem.risk_level} RISK
-                      </span>
-                      <h3 className="h3 margin-bottom-12">{selectedItem.caller_number}</h3>
-                      <div className="regular-s color-grey-80">
-                        Channel: {selectedItem.channel} • Session Ref: {selectedItem.call_id}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setDispatchModalOpen(true)}
-                      className="button primary w-button"
-                      style={{ backgroundColor: '#b91c1c' }}
+                  {queue.length === 0 ? (
+                    <div 
+                      style={{ 
+                        backgroundColor: '#ffffff', 
+                        borderRadius: '14px', 
+                        border: '1px solid #e2e8f0', 
+                        padding: '40px 20px', 
+                        textAlign: 'center', 
+                        color: '#64748b', 
+                        fontSize: '13.5px' 
+                      }}
                     >
-                      Dispatch Police 112
-                    </button>
-                  </div>
-
-                  <div className="line black margin-bottom-20"></div>
-
-                  {/* Caller Audio Evidence Player */}
-                  <div style={{ marginBottom: '20px', padding: '14px 18px', backgroundColor: 'var(--white)', borderRadius: '4px', border: '1px solid var(--grey-8)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="regular-s color-grey-80" style={{ fontWeight: 700, textTransform: 'uppercase' }}>
-                        Caller Recording Evidence:
-                      </span>
-                      <span className="regular-s" style={{ fontSize: '12px', color: '#15803d', fontWeight: 600 }}>
-                        ● Verified Telephony Capture
-                      </span>
+                      No active triage cases currently in queue.
                     </div>
-                    <audio
-                      controls
-                      src={api.getRecordingAudioUrl(`/api/v1/recordings/${selectedItem.call_id}.wav`)}
-                      style={{ width: '100%', height: '36px' }}
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {queue.map((item) => {
+                        const isSelected = selectedItem?.id === item.id || selectedItem?.call_id === item.call_id;
+                        const isCritical = item.risk_level === 'CRITICAL';
+                        const accentColor = isCritical ? '#dc2626' : item.risk_level === 'HIGH' ? '#ea580c' : '#64748b';
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => setSelectedItem(item)}
+                            style={{
+                              cursor: 'pointer',
+                              backgroundColor: '#ffffff',
+                              borderRadius: '12px',
+                              padding: '16px 18px',
+                              borderTop: isSelected ? '2px solid #0f172a' : '1px solid #e2e8f0',
+                              borderRight: isSelected ? '2px solid #0f172a' : '1px solid #e2e8f0',
+                              borderBottom: isSelected ? '2px solid #0f172a' : '1px solid #e2e8f0',
+                              borderLeft: `5px solid ${accentColor}`,
+                              boxShadow: isSelected 
+                                ? '0 8px 24px -4px rgba(15, 23, 42, 0.12)' 
+                                : '0 1px 3px rgba(0,0,0,0.03)',
+                              transform: isSelected ? 'translateX(2px)' : 'none',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span 
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  letterSpacing: '0.04em',
+                                  textTransform: 'uppercase',
+                                  padding: '2px 8px',
+                                  borderRadius: '5px',
+                                  backgroundColor: isCritical ? '#fef2f2' : '#fffbeb',
+                                  color: isCritical ? '#991b1b' : '#92400e',
+                                  border: `1px solid ${isCritical ? '#fecaca' : '#fde68a'}`
+                                }}
+                              >
+                                {item.risk_level} • SVI {item.svi_score}
+                              </span>
+                              <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 500 }}>
+                                {item.timestamp}
+                              </span>
+                            </div>
+
+                            <h4 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
+                              {item.caller_number}
+                            </h4>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>
+                              {item.channel}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Telemetry, Chart & SBAR Detail View */}
+                {selectedItem ? (
+                  <div 
+                    style={{ 
+                      backgroundColor: '#ffffff', 
+                      borderRadius: '16px', 
+                      border: '1px solid #e2e8f0', 
+                      padding: '28px',
+                      boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)'
+                    }}
+                  >
+                    {/* Detail Card Header */}
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'flex-start', 
+                        flexWrap: 'wrap', 
+                        gap: '14px', 
+                        marginBottom: '20px',
+                        paddingBottom: '18px',
+                        borderBottom: '1px solid #f1f5f9'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <span 
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              letterSpacing: '0.05em',
+                              textTransform: 'uppercase',
+                              padding: '3px 10px',
+                              borderRadius: '6px',
+                              backgroundColor: selectedItem.risk_level === 'CRITICAL' ? '#fef2f2' : '#fffbeb',
+                              color: selectedItem.risk_level === 'CRITICAL' ? '#991b1b' : '#92400e',
+                              border: `1px solid ${selectedItem.risk_level === 'CRITICAL' ? '#fecaca' : '#fde68a'}`
+                            }}
+                          >
+                            {selectedItem.risk_level} RISK
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
+                            Session Ref: <code style={{ backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>{selectedItem.call_id}</code>
+                          </span>
+                        </div>
+                        <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
+                          {selectedItem.caller_number}
+                        </h3>
+                        <div style={{ fontSize: '13px', color: '#64748b' }}>
+                          Inbound Channel: <span style={{ fontWeight: 600, color: '#334155' }}>{selectedItem.channel}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setDispatchModalOpen(true)}
+                        style={{
+                          backgroundColor: '#dc2626',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '10px',
+                          padding: '12px 22px',
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 14px rgba(220, 38, 38, 0.25)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        🚨 Dispatch Police PCR 112
+                      </button>
+                    </div>
+
+                    {/* Caller Audio Evidence Player */}
+                    <div 
+                      style={{ 
+                        marginBottom: '20px', 
+                        padding: '16px 20px', 
+                        backgroundColor: '#f8fafc', 
+                        borderRadius: '12px', 
+                        border: '1px solid #edf2f7' 
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0f172a' }}>
+                          🎧 Caller Audio Telemetry Evidence:
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ● Verified Carrier Telephony Audio
+                        </span>
+                      </div>
+                      <audio
+                        controls
+                        src={api.getRecordingAudioUrl(`/api/v1/recordings/${selectedItem.call_id}.wav`)}
+                        style={{ width: '100%', height: '38px' }}
+                      />
+                    </div>
+
+                    {/* Verbatim Transcript */}
+                    <div style={{ width: '100%', marginBottom: '24px' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                        Latest Verbatim Speech Utterance:
+                      </div>
+                      <div 
+                        style={{ 
+                          backgroundColor: '#f8fafc', 
+                          border: '1px solid #edf2f7', 
+                          borderLeft: '4px solid #0f172a',
+                          padding: '16px 20px', 
+                          borderRadius: '10px', 
+                          fontStyle: 'italic',
+                          color: '#1e293b',
+                          fontSize: '14px',
+                          lineHeight: 1.6
+                        }}
+                      >
+                        "{selectedItem.latest_utterance}"
+                      </div>
+                    </div>
+
+                    {/* Recharts PS 26093 Trauma & Distress Indicators Bar Chart */}
+                    <TraumaMetricsChart
+                      callerId={selectedItem.id}
+                      callerNumber={selectedItem.caller_number}
+                      riskLevel={selectedItem.risk_level}
+                      sviScore={selectedItem.svi_score}
+                      data={getTraumaChartData(selectedItem)}
                     />
-                  </div>
 
-                  {/* Verbatim Transcript */}
-                  <div style={{ width: '100%', marginBottom: '24px' }}>
-                    <div className="regular-s color-grey-80 margin-bottom-8" style={{ textTransform: 'uppercase' }}>
-                      Latest Verbatim Utterance:
-                    </div>
-                    <div style={{ backgroundColor: 'var(--white)', border: '1px solid var(--grey-8)', padding: '16px 20px', borderRadius: '4px', fontStyle: 'italic' }}>
-                      "{selectedItem.latest_utterance}"
+                    {/* SBAR Clinical Handoff Report: 4 Quadrants */}
+                    <div style={{ width: '100%' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '14px' }}>
+                        📋 SBAR Clinical Law Enforcement Report:
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                        {/* Situation */}
+                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #fecaca', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                          <div style={{ backgroundColor: '#fef2f2', padding: '8px 14px', borderBottom: '1px solid #fee2e2', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#dc2626', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>S</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#991b1b', letterSpacing: '0.03em' }}>SITUATION</span>
+                          </div>
+                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
+                            {selectedItem.sbar.situation}
+                          </div>
+                        </div>
+
+                        {/* Background */}
+                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #fde68a', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                          <div style={{ backgroundColor: '#fffbeb', padding: '8px 14px', borderBottom: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#d97706', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>B</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#92400e', letterSpacing: '0.03em' }}>BACKGROUND</span>
+                          </div>
+                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
+                            {selectedItem.sbar.background}
+                          </div>
+                        </div>
+
+                        {/* Assessment */}
+                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                          <div style={{ backgroundColor: '#eff6ff', padding: '8px 14px', borderBottom: '1px solid #dbeafe', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#2563eb', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>A</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', letterSpacing: '0.03em' }}>ASSESSMENT</span>
+                          </div>
+                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
+                            {selectedItem.sbar.assessment}
+                          </div>
+                        </div>
+
+                        {/* Recommendation */}
+                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #bbf7d0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                          <div style={{ backgroundColor: '#f0fdf4', padding: '8px 14px', borderBottom: '1px solid #dcfce7', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#16a34a', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>R</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#166534', letterSpacing: '0.03em' }}>RECOMMENDATION</span>
+                          </div>
+                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
+                            {selectedItem.sbar.recommendation}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Recharts PS 26093 Trauma & Distress Indicators Bar Chart */}
-                  <TraumaMetricsChart
-                    callerId={selectedItem.id}
-                    callerNumber={selectedItem.caller_number}
-                    riskLevel={selectedItem.risk_level}
-                    sviScore={selectedItem.svi_score}
-                    data={getTraumaChartData(selectedItem)}
-                  />
-
-                  {/* SBAR Report */}
-                  <div style={{ width: '100%' }}>
-                    <div className="regular-s color-grey-80 margin-bottom-12" style={{ textTransform: 'uppercase' }}>
-                      SBAR Clinical Handoff Report:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div style={{ backgroundColor: 'var(--white)', border: '1px solid var(--grey-8)', padding: '14px 18px', borderRadius: '4px' }}>
-                        <div className="regular-s color-grey-80" style={{ fontWeight: 700 }}>S - SITUATION</div>
-                        <p className="regular-m" style={{ fontSize: '14px' }}>{selectedItem.sbar.situation}</p>
-                      </div>
-                      <div style={{ backgroundColor: 'var(--white)', border: '1px solid var(--grey-8)', padding: '14px 18px', borderRadius: '4px' }}>
-                        <div className="regular-s color-grey-80" style={{ fontWeight: 700 }}>B - BACKGROUND</div>
-                        <p className="regular-m" style={{ fontSize: '14px' }}>{selectedItem.sbar.background}</p>
-                      </div>
-                      <div style={{ backgroundColor: 'var(--white)', border: '1px solid var(--grey-8)', padding: '14px 18px', borderRadius: '4px' }}>
-                        <div className="regular-s color-grey-80" style={{ fontWeight: 700 }}>A - ASSESSMENT</div>
-                        <p className="regular-m" style={{ fontSize: '14px' }}>{selectedItem.sbar.assessment}</p>
-                      </div>
-                      <div style={{ backgroundColor: 'var(--white)', border: '1px solid var(--grey-8)', padding: '14px 18px', borderRadius: '4px' }}>
-                        <div className="regular-s color-grey-80" style={{ fontWeight: 700 }}>R - RECOMMENDATION</div>
-                        <p className="regular-m" style={{ fontSize: '14px' }}>{selectedItem.sbar.recommendation}</p>
-                      </div>
-                    </div>
+                ) : (
+                  <div 
+                    style={{ 
+                      backgroundColor: '#ffffff', 
+                      borderRadius: '16px', 
+                      border: '1px solid #e2e8f0', 
+                      padding: '80px 20px', 
+                      textAlign: 'center', 
+                      boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)'
+                    }}
+                  >
+                    <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>No Case Selected</h3>
+                    <p style={{ fontSize: '14px', color: '#64748b' }}>Select a triage case from the incoming priority queue on the left to inspect biometric telemetry &amp; SBAR report.</p>
                   </div>
-                </div>
-              ) : (
-                <div className="block padding-24-32 bg-grey-3" style={{ textAlign: 'center', padding: '60px 20px' }}>
-                  <h3 className="h3 margin-bottom-12">No Case Selected</h3>
-                  <p className="regular-m color-grey-80">Select a triage case from the incoming queue on the left to inspect telemetry.</p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </main>
       </section>
 
       {/* Police 112 Dispatch Modal */}
       {dispatchModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 className="h3 margin-bottom-16" style={{ color: '#b91c1c' }}>
-              Confirm Police PCR 112 Dispatch
-            </h3>
-            <div className="line black margin-bottom-20"></div>
-            <p className="regular-m margin-bottom-20">
-              You are dispatching an immediate statutory law-enforcement intercept for:
+        <div className="modal-overlay" style={{ backdropFilter: 'blur(6px)', backgroundColor: 'rgba(15, 23, 42, 0.65)' }}>
+          <div 
+            className="modal-content"
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '18px',
+              border: '1px solid #e2e8f0',
+              padding: '32px 36px',
+              maxWidth: '540px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '24px' }}>🚨</span>
+              <h3 style={{ color: '#b91c1c', fontSize: '22px', fontWeight: 800, margin: 0 }}>
+                Confirm Police PCR 112 Dispatch
+              </h3>
+            </div>
+            
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px', lineHeight: 1.5 }}>
+              You are authorizing an immediate emergency intercept broadcast to State Police HQ and the nearest PCR vehicle.
             </p>
-            <div style={{ backgroundColor: 'var(--grey-3)', padding: '16px', borderRadius: '4px', marginBottom: '24px' }}>
-              <div><strong>Caller:</strong> {selectedItem.caller_number}</div>
-              <div><strong>Assessment:</strong> {selectedItem.sbar.assessment}</div>
-              <div><strong>Action:</strong> {selectedItem.sbar.recommendation}</div>
+
+            <div 
+              style={{ 
+                backgroundColor: '#f8fafc', 
+                border: '1px solid #e2e8f0', 
+                padding: '18px', 
+                borderRadius: '12px', 
+                marginBottom: '24px',
+                fontSize: '13.5px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div><strong style={{ color: '#0f172a' }}>Caller:</strong> {selectedItem.caller_number}</div>
+              <div><strong style={{ color: '#0f172a' }}>Assessment:</strong> {selectedItem.sbar.assessment}</div>
+              <div><strong style={{ color: '#0f172a' }}>Target Action:</strong> {selectedItem.sbar.recommendation}</div>
             </div>
 
             {dispatchSuccess ? (
-              <div style={{ color: '#15803d', fontWeight: 700, padding: '12px 0' }}>
-                ✓ PCR 112 Unit Dispatched Successfully. Incident Log Transmitted.
+              <div 
+                style={{ 
+                  color: '#15803d', 
+                  fontWeight: 700, 
+                  padding: '14px', 
+                  backgroundColor: '#f0fdf4',
+                  borderRadius: '10px',
+                  border: '1px solid #86efac',
+                  textAlign: 'center',
+                  fontSize: '14px'
+                }}
+              >
+                ✓ PCR 112 Emergency Intercept Dispatched. Incident Log Transmitted to Control Room.
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
@@ -546,14 +1095,24 @@ export const OperatorDashboard: React.FC = () => {
                   type="button"
                   onClick={() => setDispatchModalOpen(false)}
                   className="button secondary small w-button"
+                  style={{ borderRadius: '8px', padding: '10px 18px', fontSize: '13.5px' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleDispatch}
-                  className="button primary small w-button"
-                  style={{ backgroundColor: '#b91c1c' }}
+                  style={{
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 22px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 10px rgba(220, 38, 38, 0.3)'
+                  }}
                 >
                   Transmit 112 Dispatch Now
                 </button>

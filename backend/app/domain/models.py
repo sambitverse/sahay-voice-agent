@@ -104,3 +104,11 @@ class DistressState(BaseModel):
     aggregated_evidence: List[str] = Field(default_factory=list)
     safety_flags: SafetyFlags = Field(default_factory=SafetyFlags)
     requires_escalation: bool = False
+
+    @property
+    def current_score(self) -> float:
+        return self.rolling_distress_score
+
+    @property
+    def current_level(self) -> RiskLevel:
+        return self.current_risk_level

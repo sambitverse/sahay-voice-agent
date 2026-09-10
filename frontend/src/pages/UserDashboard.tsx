@@ -89,22 +89,57 @@ export const UserDashboard: React.FC = () => {
     }
   }, [callerPhone]);
 
+  // Helper to safely format raw complaints from DB/API
+  const normalizeComplaint = (c: any): CitizenComplaint => ({
+    id: String(c.id || c.call_id || Math.random()),
+    call_id: c.call_id,
+    caller_number: c.caller_number || c.caller_phone || '',
+    ticket_ref: c.ticket_ref || (c.call_id ? `TKT-${String(c.call_id).replace(/^call_|^browser_/, '')}` : `TKT-${c.id || 'REC'}`),
+    type: c.type || 'voice',
+    timestamp: c.timestamp || 'Recent',
+    risk_level: ((c.risk_level || 'MODERATE').toUpperCase() as any),
+    summary: c.summary || 'Voice triage call session recorded on helpline.',
+    language: c.language || 'or-IN',
+    recording_url: c.recording_url,
+    recommended_services: Array.isArray(c.recommended_services) && c.recommended_services.length > 0
+      ? c.recommended_services
+      : (c.recommended_services ? [String(c.recommended_services)] : ['PCR 112 Police Dispatch', 'Statutory Legal Aid', 'Helpline 08047283123']),
+    status: c.status || 'REGISTERED',
+    is_legitimate: c.is_legitimate ?? true
+  });
+
   // Load complaints from API filtered by caller phone
   useEffect(() => {
     let mounted = true;
     const fetchComplaints = async () => {
       setLoading(true);
       try {
-        const remoteComplaints = await api.getRecentComplaints(callerPhone);
-        if (mounted && Array.isArray(remoteComplaints) && remoteComplaints.length > 0) {
-          // Filter matching phone digits or include if matches
+        const [remoteComplaints, voiceRecs] = await Promise.all([
+          api.getRecentComplaints(callerPhone),
+          api.getVoiceRecordings(callerPhone, 'user')
+        ]);
+        const combined: any[] = [...(Array.isArray(remoteComplaints) ? remoteComplaints : [])];
+        const existingIds = new Set(combined.map((c: any) => c.call_id || c.id));
+        if (Array.isArray(voiceRecs)) {
+          for (const vr of voiceRecs) {
+            if (!existingIds.has(vr.call_id)) {
+              combined.unshift(vr);
+              existingIds.add(vr.call_id);
+            }
+          }
+        }
+
+        if (mounted && combined.length > 0) {
+          // Filter strictly matching phone digits so the user sees only their own recordings
           const digits = callerPhone.replace(/\D/g, '').slice(-10);
-          const matched = remoteComplaints.filter((c: any) => {
-            if (!c.caller_number) return true;
-            const cDigits = c.caller_number.replace(/\D/g, '').slice(-10);
+          const matched = combined.filter((c: any) => {
+            const num = c.caller_number || c.caller_phone;
+            if (!num) return true;
+            const cDigits = num.replace(/\D/g, '').slice(-10);
             return !digits || !cDigits || cDigits.includes(digits) || digits.includes(cDigits);
           });
-          setComplaints(matched.length > 0 ? matched : remoteComplaints);
+          const rawList = matched.length > 0 ? matched : combined;
+          setComplaints(rawList.map(normalizeComplaint));
         } else if (mounted) {
           // Filter local showcase by phone
           const digits = callerPhone.replace(/\D/g, '').slice(-10);
@@ -112,10 +147,12 @@ export const UserDashboard: React.FC = () => {
             const cDigits = (c.caller_number || '').replace(/\D/g, '').slice(-10);
             return !digits || !cDigits || cDigits.includes(digits) || digits.includes(cDigits);
           });
-          setComplaints(matched.length > 0 ? matched : DEMO_COMPLAINTS);
+          const rawList = matched.length > 0 ? matched : DEMO_COMPLAINTS;
+          setComplaints(rawList.map(normalizeComplaint));
         }
       } catch (err) {
         console.warn('Could not load remote complaints, using cached showcase:', err);
+        if (mounted) setComplaints(DEMO_COMPLAINTS.map(normalizeComplaint));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -434,25 +471,27 @@ export const UserDashboard: React.FC = () => {
                     )}
 
                     {/* Recommended Services */}
-                    <div style={{ marginTop: '16px' }}>
-                      <div className="regular-s color-grey-80 margin-bottom-8">Statutory Protections:</div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {item.recommended_services.map((svc, i) => (
-                          <span 
-                            key={i} 
-                            style={{ 
-                              backgroundColor: 'var(--white)', 
-                              border: '1px solid var(--grey-8)', 
-                              padding: '4px 12px', 
-                              borderRadius: '100px', 
-                              fontSize: '13px' 
-                            }}
-                          >
-                            {svc}
-                          </span>
-                        ))}
+                    {(item.recommended_services || []).length > 0 && (
+                      <div style={{ marginTop: '16px' }}>
+                        <div className="regular-s color-grey-80 margin-bottom-8">Statutory Protections:</div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {(item.recommended_services || []).map((svc, i) => (
+                            <span 
+                              key={i} 
+                              style={{ 
+                                backgroundColor: 'var(--white)', 
+                                border: '1px solid var(--grey-8)', 
+                                padding: '4px 12px', 
+                                borderRadius: '100px', 
+                                fontSize: '13px' 
+                              }}
+                            >
+                              {svc}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Lower Right Action: Withdraw Case & Delete Audio */}
                     <div 

@@ -39,10 +39,10 @@ try:
         SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "")
         SARVAM_BASE_URL: str = os.getenv("SARVAM_BASE_URL", "https://api.sarvam.ai")
 
-        BHASHINI_API_KEY: str = os.getenv("BHASHINI_API_KEY", "")
-        BHASHINI_USER_ID: str = os.getenv("BHASHINI_USER_ID", "")
-        BHASHINI_AUTH_TOKEN: str = os.getenv("BHASHINI_AUTH_TOKEN", "")
-        BHASHINI_INFERENCE_URL: str = os.getenv("BHASHINI_INFERENCE_URL", "https://dhruva-api.bhashini.gov.in")
+        BHASHINI_API_KEY: str = (os.getenv("BHASHINI_API_KEY") or "").strip("\"'")
+        BHASHINI_USER_ID: str = (os.getenv("BHASHINI_USER_ID") or "").strip("\"'")
+        BHASHINI_AUTH_TOKEN: str = (os.getenv("BHASHINI_AUTH_TOKEN") or "").strip("\"'")
+        BHASHINI_INFERENCE_URL: str = (os.getenv("BHASHINI_INFERENCE_URL") or "https://dhruva-api.bhashini.gov.in").strip("\"'")
 
         GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
         GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-flash-lite-latest")
@@ -85,10 +85,10 @@ except ImportError:
         SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "")
         SARVAM_BASE_URL: str = os.getenv("SARVAM_BASE_URL", "https://api.sarvam.ai")
 
-        BHASHINI_API_KEY: str = os.getenv("BHASHINI_API_KEY", "")
-        BHASHINI_USER_ID: str = os.getenv("BHASHINI_USER_ID", "")
-        BHASHINI_AUTH_TOKEN: str = os.getenv("BHASHINI_AUTH_TOKEN", "")
-        BHASHINI_INFERENCE_URL: str = os.getenv("BHASHINI_INFERENCE_URL", "https://dhruva-api.bhashini.gov.in")
+        BHASHINI_API_KEY: str = (os.getenv("BHASHINI_API_KEY") or "").strip("\"'")
+        BHASHINI_USER_ID: str = (os.getenv("BHASHINI_USER_ID") or "").strip("\"'")
+        BHASHINI_AUTH_TOKEN: str = (os.getenv("BHASHINI_AUTH_TOKEN") or "").strip("\"'")
+        BHASHINI_INFERENCE_URL: str = (os.getenv("BHASHINI_INFERENCE_URL") or "https://dhruva-api.bhashini.gov.in").strip("\"'")
 
         GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
         GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-flash-lite-latest")

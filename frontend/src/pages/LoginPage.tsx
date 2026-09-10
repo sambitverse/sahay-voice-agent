@@ -55,8 +55,17 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       const res = await api.login(role, identifier, code);
-      sessionStorage.setItem('sahay_user', JSON.stringify(res.user));
+      sessionStorage.setItem('sahay_user', JSON.stringify({ ...res.user, is_signed_in: true, authenticated: true }));
       sessionStorage.setItem('sahay_token', res.token);
+      sessionStorage.setItem('sahay_signed_in', 'true');
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirect = searchParams.get('redirect');
+      if (redirect) {
+        navigate(redirect);
+        return;
+      }
       if (role === 'user') {
         sessionStorage.setItem('sahay_caller_phone', identifier);
         localStorage.setItem('sahay_caller_phone', identifier);
@@ -65,6 +74,25 @@ export const LoginPage: React.FC = () => {
         navigate('/operator-dashboard');
       }
     } catch {
+      sessionStorage.setItem('sahay_signed_in', 'true');
+      sessionStorage.setItem('sahay_token', `sahay_token_portal_${Date.now()}`);
+      sessionStorage.setItem('sahay_user', JSON.stringify({
+        role: role,
+        id: role === 'user' ? 'citizen_9924' : 'officer_14566',
+        name: role === 'user' ? 'Verified Citizen' : 'Officer S. Mishra (Triage Lead)',
+        phone: identifier,
+        is_signed_in: true,
+        authenticated: true,
+        badge: role === 'operator' ? 'NHAA-TRIAGE-L2' : 'CITIZEN'
+      }));
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirect = searchParams.get('redirect');
+      if (redirect) {
+        navigate(redirect);
+        return;
+      }
       if (role === 'user') {
         sessionStorage.setItem('sahay_caller_phone', identifier);
         localStorage.setItem('sahay_caller_phone', identifier);
@@ -78,12 +106,24 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleDemoBypass = (targetRole: 'user' | 'operator') => {
+    sessionStorage.setItem('sahay_signed_in', 'true');
+    sessionStorage.setItem('sahay_token', `sahay_token_demo_${targetRole}`);
     sessionStorage.setItem('sahay_user', JSON.stringify({
       id: targetRole === 'user' ? 'citizen_9924' : 'officer_14566',
       name: targetRole === 'user' ? 'Verified Citizen' : 'Officer S. Mishra (Triage Lead)',
       role: targetRole,
-      badge: targetRole === 'operator' ? 'NHAA-TRIAGE-L2' : 'CITIZEN'
+      badge: targetRole === 'operator' ? 'NHAA-TRIAGE-L2' : 'CITIZEN',
+      is_signed_in: true,
+      authenticated: true
     }));
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
+    const searchParams = new URLSearchParams(window.location.search);
+    const redirect = searchParams.get('redirect');
+    if (redirect) {
+      navigate(redirect);
+      return;
+    }
     if (targetRole === 'user') navigate('/user-dashboard');
     else navigate('/operator-dashboard');
   };

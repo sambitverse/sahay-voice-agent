@@ -291,6 +291,25 @@ export const api = {
     return { status: 'success', message: 'All records permanently erased per DPDP Act.' };
   },
 
+  /** Fetch Voice Recordings from SQLite database (role-based: citizen own vs operator all) */
+  async getVoiceRecordings(phone?: string, role?: string) {
+    try {
+      const params = new URLSearchParams();
+      if (phone) params.append('phone', phone);
+      if (role) params.append('role', role);
+      const res = await fetch(`${API_BASE_URL}/api/v1/recordings?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.recordings)) {
+          return data.recordings;
+        }
+      }
+    } catch (err) {
+      console.warn('Backend recordings endpoint unreachable:', err);
+    }
+    return [];
+  },
+
   getRecordingAudioUrl(recordingUrl: string) {
     if (!recordingUrl) return '';
     if (recordingUrl.startsWith('http')) return recordingUrl;

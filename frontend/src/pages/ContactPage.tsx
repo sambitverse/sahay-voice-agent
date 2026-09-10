@@ -102,24 +102,20 @@ export const ContactPage: React.FC = () => {
               </div>
             </a>
 
-            <a 
-              href="tel:14566" 
-              className="block padding-24-32 justify-content bg-grey-3 w-inline-block"
+            <div 
+              className="block padding-24-32 justify-content bg-grey-3"
             >
               <div className="wrapper max-width-420-tablet-640 width-100 margin-bottom-32">
                 <h4 className="h4 margin-bottom-20">Toll-Free Hotline</h4>
                 <div className="line black margin-bottom-20"></div>
                 <p className="regular-m">
-                  Dial 14566 (National Helpline) or 112 (Police Emergency PCR). Free 24/7 access from any landline or mobile across India.
+                  Free 24/7 access from any landline or mobile across India. Dial 112 for Police Emergency PCR.
                 </p>
               </div>
-              <div className="tertiary-button">
-                <div className="regular-m">Call 14566 Now</div>
-                <div className="tertiary-button-icon">
-                  <img src="https://cdn.prod.website-files.com/65e1c0c2fd61a5053f5c7bc9/65e1ddac5c1d21f3b536e04f_Arrow%20Right.svg" loading="lazy" alt="" className="icon-size-14"/>
-                </div>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--black)' }}>
+                Toll free helpline no. is "08047283123"
               </div>
-            </a>
+            </div>
           </div>
         </div>
       </section>
@@ -220,13 +216,12 @@ export const ContactPage: React.FC = () => {
         <div className="w-layout-blockcontainer container w-container">
           <h2 className="h2 max-width-432-mobile-320 margin-bottom-56">Official Emergency Channels</h2>
           <div className="w-layout-grid cards-grid-2-tablet-2-mobile-1 socials">
-            <a href="tel:14566" className="wrapper w-inline-block">
+            <div className="wrapper">
               <div className="line black margin-bottom-20"></div>
               <div className="wrapper social-link">
-                <h4 className="h4">14566 National Helpline</h4>
-                <img src="https://cdn.prod.website-files.com/65e1c0c2fd61a5053f5c7bc9/65e1ddac852c806c77a38998_Arrow%20Up%20Right.svg" loading="lazy" alt="" className="icon-size-20"/>
+                <h4 className="h4">Toll Free Helpline: 08047283123</h4>
               </div>
-            </a>
+            </div>
             <a href="tel:112" className="wrapper w-inline-block">
               <div className="line black margin-bottom-20"></div>
               <div className="wrapper social-link">

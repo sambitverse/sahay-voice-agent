@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import datetime
 import random
@@ -10,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+import asyncio
 from app.config import settings
 from app.trauma.state_machine import ConversationStateManager, ConversationState
 from app.trauma.rules import SafetyRulesEngine
@@ -18,12 +20,27 @@ from app.language.router import LanguageRouter, DialectBridge
 from app.domain.models import RiskLevel, SafetyFlags
 from app.database.supabase_client import SupabaseManager
 from app.websocket.dashboard_ws import broadcaster
+from app.providers.gemini_provider import GeminiProvider
+from app.providers.hybrid_speech import HybridSpeechProvider
+from app.rag.retriever import VerifiedRAGRetriever
+from app.websocket.client_ws import is_response_language_consistent
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="", tags=["Website & Citizen Portal"])
 
 language_router = LanguageRouter()
+gemini_provider = GeminiProvider(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+hybrid_speech = HybridSpeechProvider(
+    sarvam_api_key=settings.SARVAM_API_KEY,
+    sarvam_base_url=settings.SARVAM_BASE_URL,
+    bhashini_auth_token=settings.BHASHINI_AUTH_TOKEN,
+    bhashini_user_id=settings.BHASHINI_USER_ID,
+    bhashini_api_key=settings.BHASHINI_API_KEY,
+    bhashini_inference_url=settings.BHASHINI_INFERENCE_URL,
+    primary_provider="bhashini"
+)
+rag_retriever = VerifiedRAGRetriever()
 
 # In-memory session store for active random OTPs (keyed by 10-digit phone)
 ACTIVE_OTPS: Dict[str, Dict[str, Any]] = {}
@@ -209,10 +226,51 @@ async def get_user_logs(user_id: str):
 async def get_recent_complaints(phone: Optional[str] = None):
     """Publicly accessible endpoint: returns citizen complaints and recordings filtered by caller phone number."""
     db = SupabaseManager.get_instance()
+    complaints = list(db.get_citizen_complaints(phone=phone))
+
+    # Merge records from SQLite Voice Recordings database
+    try:
+        from app.database import recordings_db
+        db_recs = recordings_db.get_recordings(phone=phone)
+        existing_call_ids = {c.get("call_id") for c in complaints if c.get("call_id")}
+        for r in db_recs:
+            if r.get("call_id") not in existing_call_ids:
+                complaints.insert(0, r)
+                existing_call_ids.add(r.get("call_id"))
+    except Exception as e:
+        logger.warning(f"[API] Error merging SQLite recordings: {e}")
+
     return {
         "status": "success",
         "caller_phone": phone,
-        "complaints": db.get_citizen_complaints(phone=phone)
+        "complaints": complaints
+    }
+
+@router.get("/recordings")
+@router.get("/recordings/list")
+@router.get("/website/recordings")
+@router.get("/website/recordings/list")
+async def get_recordings_list(phone: Optional[str] = None, role: Optional[str] = None):
+    """
+    Role-based voice recordings access:
+    - Citizen (phone provided, role != 'operator'): returns ONLY the citizen's own voice recordings.
+    - Operator (role == 'operator' or phone is None): returns EVERY citizen's recording in a unified administrative list.
+    """
+    from app.database import recordings_db
+    is_operator = (role or "").lower() == "operator"
+    if is_operator:
+        records = recordings_db.get_recordings(phone=None)
+    elif phone:
+        records = recordings_db.get_recordings(phone=phone)
+    else:
+        records = recordings_db.get_recordings(phone=None)
+
+    return {
+        "status": "success",
+        "count": len(records),
+        "role": "operator" if is_operator else ("citizen" if phone else "operator"),
+        "filter_phone": phone if not is_operator else None,
+        "recordings": records
     }
 
 @router.post("/complaints/register")
@@ -269,6 +327,14 @@ async def delete_citizen_complaint(identifier: str):
     """
     db = SupabaseManager.get_instance()
     deleted = db.delete_complaint(identifier)
+
+    # Also erase from SQLite Voice Recordings database
+    try:
+        from app.database import recordings_db
+        recordings_db.delete_recording(identifier)
+    except Exception as dbe:
+        logger.warning(f"[API] Error deleting from recordings_db: {dbe}")
+
     if not deleted:
         raise HTTPException(status_code=404, detail="Complaint or recording not found or already erased.")
 
@@ -308,7 +374,10 @@ async def send_chat_message(req: ChatMessageRequest):
     env = ConversationStateManager.detect_environment(text)
     
     # 2. Language & dialect normalization
-    if req.language and req.language.lower() != "unknown":
+    req_lang_lower = (req.language or "").lower()
+    if "hi" in req_lang_lower or re.search(r'[\u0900-\u097f]', text):
+        effective_lang = "hi-IN"
+    elif req.language and req_lang_lower != "unknown":
         effective_lang = language_router.normalize_language_code(req.language).value
     else:
         detected_enum, _ = language_router.detect_language_from_text(text)
@@ -318,49 +387,144 @@ async def send_chat_message(req: ChatMessageRequest):
 
     # 3. Out-of-Scope Query Interception
     if SafetyValidator.is_out_of_scope(text):
-        lang_key = "en" if "en" in effective_lang else "or"
+        if "hi" in effective_lang:
+            lang_key = "hi"
+        elif "en" in effective_lang:
+            lang_key = "en"
+        else:
+            lang_key = "or"
         refusal_text = SafetyValidator.OUT_OF_SCOPE_RESPONSES.get(lang_key, SafetyValidator.OUT_OF_SCOPE_RESPONSES["or"])
+        audio_b64 = None
+        try:
+            if hybrid_speech.is_configured():
+                tts_audio = await hybrid_speech.synthesize(refusal_text, effective_lang)
+                if tts_audio and len(tts_audio) > 100:
+                    audio_b64 = base64.b64encode(tts_audio).decode("utf-8")
+        except Exception as e:
+            logger.warning(f"[Chat API] Out-of-scope TTS exception: {e}")
         return {
             "text": refusal_text,
             "risk_level": "LOW",
             "environment": env,
-            "recommended_services": ["14566 National Helpline Against Atrocities"]
+            "recommended_services": ["14566 National Helpline Against Atrocities"],
+            "audio_b64": audio_b64,
+            "language": effective_lang
         }
 
     # 4. Deterministic Safety Evaluation
     flags = SafetyFlags()
     overridden_level, is_override_applied, evidence = SafetyRulesEngine.evaluate_overrides(normalized_text, flags)
 
-    # 4. Generate Grounded Safe Response
+    # 5. Generate Grounded Safe Response
     if env.get("wilderness") or env.get("pursuit"):
-        safe_response = (
-            "ମୁଁ ଆପଣଙ୍କ କଥା ଶୁଣିପାରୁଛି। ଦୟାକରି ଚୁପି ଚାପ ନୁଚି ରହନ୍ତୁ, ମୋବାଇଲ ସାଉଣ୍ଡ ସାଇଲେଣ୍ଟ କରନ୍ତୁ, "
-            "ଓ ପାଖରେ ଥିବା ରାସ୍ତା ବା ମନ୍ଦିର ବିଷୟରେ କହନ୍ତୁ। ପୋଲିସ PCR 112 ପଠାଉଛୁ।"
-        )
+        if "hi" in effective_lang:
+            safe_response = (
+                "मैं आपकी बात सुन रहा हूँ। कृपया चुपचाप छिपकर रहें, मोबाइल को साइलेंट करें, "
+                "और पास के रास्ते या मंदिर के बारे में बताएं। पुलिस PCR 112 भेजी जा रही है।"
+            )
+        elif "en" in effective_lang:
+            safe_response = (
+                "I can hear you. Please stay hidden and silent, keep your mobile on silent, "
+                "and tell us about any nearby road or temple. Police PCR 112 is being dispatched."
+            )
+        else:
+            safe_response = (
+                "ମୁଁ ଆପଣଙ୍କ କଥା ଶୁଣିପାରୁଛି। ଦୟାକରି ଚୁପି ଚାପ ନୁଚି ରହନ୍ତୁ, ମୋବାଇଲ ସାଉଣ୍ଡ ସାଇଲେଣ୍ଟ କରନ୍ତୁ, "
+                "ଓ ପାଖରେ ଥିବା ରାସ୍ତା ବା ମନ୍ଦିର ବିଷୟରେ କହନ୍ତୁ। ପୋଲିସ PCR 112 ପଠାଉଛୁ।"
+            )
         risk_level = "CRITICAL"
         services = ["PCR 112 Police Dispatch", "14566 Witness Protection"]
     elif is_override_applied and overridden_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
         risk_level = overridden_level.value
         if "ସାମାଜିକ ବାସନ୍ଦ" in text or "boycott" in text.lower() or "pani" in text.lower():
-            safe_response = (
-                "ସାମାଜିକ ବାସନ୍ଦ ଏବଂ ପିଇବା ପାଣି ବନ୍ଦ କରିବା ଆଇନ ଅନୁସାରେ ଦଣ୍ଡନୀୟ ଅପରାଧ। "
-                "ଆମେ ତୁରନ୍ତ ଜିଲ୍ଲା ପ୍ରଶାସନ ଓ ୧୪୫୬୬ କୁ ସୂଚନା ଦେଇଛୁ। ଆପଣଙ୍କୁ ସୁରକ୍ଷା ମିଳିବ।"
-            )
+            if "hi" in effective_lang:
+                safe_response = (
+                    "सामाजिक बहिष्कार और पीने का पानी रोकना कानूनन दंडनीय अपराध है। "
+                    "हमने तुरंत जिला प्रशासन और 14566 को सूचित किया है। आपको पूरी सुरक्षा मिलेगी।"
+                )
+            elif "en" in effective_lang:
+                safe_response = (
+                    "Social boycott and blocking drinking water is a punishable offense by law. "
+                    "We have immediately alerted district administration and 14566. Protection will be provided."
+                )
+            else:
+                safe_response = (
+                    "ସାମାଜିକ ବାସନ୍ଦ ଏବଂ ପିଇବା ପାଣି ବନ୍ଦ କରିବା ଆଇନ ଅନୁସାରେ ଦଣ୍ଡନୀୟ ଅପରାଧ। "
+                    "ଆମେ ତୁରନ୍ତ ଜିଲ୍ଲା ପ୍ରଶାସନ ଓ ୧୪୫୬୬ କୁ ସୂଚନା ଦେଇଛୁ। ଆପଣଙ୍କୁ ସୁରକ୍ଷା ମିଳିବ।"
+                )
             services = ["14566 National Helpline", "DLSA Legal Aid"]
         else:
-            safe_response = ConversationStateManager.get_fallback_phrase(risk_level, "or-IN", text)
+            safe_response = ConversationStateManager.get_fallback_phrase(risk_level, effective_lang, text)
             services = ["PCR 112 Emergency", "14566 Helpline"]
     else:
         risk_level = "LOW"
-        safe_response = "ଆପଣ ନିରାପଦରେ ରୁହନ୍ତୁ। ମୁଁ ଆପଣଙ୍କ କଥା ଶୁଣୁଛି, କୁହନ୍ତୁ ଆମେ ଆପଣଙ୍କୁ କିପରି ସାହାଯ୍ୟ କରିପାରିବୁ?"
-        services = ["14566 Information Assistance"]
+        services = ["14566 National Helpline Against Atrocities", "DLSA Free Legal Aid"]
+        rag_context = rag_retriever.retrieve_context(
+            query=normalized_text,
+            risk_level=risk_level,
+            language_code=effective_lang,
+            top_k=2
+        )
+        lang_label = {
+            "or-IN": "ODIA",
+            "hi-IN": "HINDI",
+            "en-IN": "ENGLISH",
+            "sat-IN": "SANTALI",
+            "des-IN": "DESIA",
+            "kui-IN": "KUI",
+            "kuvi-IN": "KUVI",
+        }.get(effective_lang, effective_lang)
+
+        system_instructions = (
+            f"You are SAHAY, the official AI crisis helpline assistant for the National Helpline Against Atrocities (14566), "
+            f"supporting citizens facing distress, caste/tribal atrocities, discrimination, or needing emergency assistance under the SC/ST PoA Act.\n\n"
+            f"[MANDATORY STRICT USER LANGUAGE DIRECTIVE - ZERO TOLERANCE]:\n"
+            f"- Respond EXCLUSIVELY and SOLELY in {lang_label}.\n"
+            f"- If language is ODIA: Output natural, compassionate, grammatically correct spoken Odia (Odia script).\n"
+            f"- If language is HINDI: Output natural, compassionate spoken Hindi (Devanagari script).\n"
+            f"- If language is ENGLISH: Output clear, empathetic Indian English.\n"
+            f"- Absolute Prohibition: Under NO circumstances mix or output another language.\n\n"
+            f"[GUIDELINES]:\n"
+            f"- Keep your response concise, comforting, and actionable (at most 2 to 3 sentences).\n"
+            f"- Always assure the citizen of safety and provide the 14566 helpline or PCR 112 if emergency.\n"
+            f"- Never hallucinate or give unverified procedural claims."
+        )
+
+        try:
+            raw_response = await asyncio.wait_for(
+                gemini_provider.generate_response(
+                    conversation_history=[{"role": "caller", "content": text}],
+                    system_instructions=system_instructions,
+                    retrieved_context=rag_context
+                ),
+                timeout=12.0
+            )
+            safe_response, _ = SafetyValidator.validate(raw_response, effective_lang, caller_transcript=normalized_text)
+            if not is_response_language_consistent(safe_response, effective_lang):
+                logger.warning(f"[Chat API] LLM response deviated from target language {effective_lang}; using certified fallback.")
+                safe_response = ConversationStateManager.get_fallback_phrase(risk_level, effective_lang, text)
+        except Exception as e:
+            logger.warning(f"[Chat API] Gemini generation failed: {e}; using fallback.")
+            safe_response = ConversationStateManager.get_fallback_phrase(risk_level, effective_lang, text)
 
     # Final post-generation guardrail verification
-    validated_response, _ = SafetyValidator.validate(safe_response, "or-IN", text)
+    validated_response, _ = SafetyValidator.validate(safe_response, effective_lang, text)
+
+    # High-accuracy speech generation via Bhashini & Sarvam
+    audio_b64 = None
+    try:
+        if hybrid_speech.is_configured():
+            tts_audio = await hybrid_speech.synthesize(validated_response, effective_lang)
+            if tts_audio and len(tts_audio) > 100:
+                audio_b64 = base64.b64encode(tts_audio).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"[Chat API] Speech synthesis exception: {e}")
 
     return {
         "text": validated_response,
         "risk_level": risk_level,
         "environment": env,
-        "recommended_services": services
+        "recommended_services": services,
+        "audio_b64": audio_b64,
+        "language": effective_lang
     }
