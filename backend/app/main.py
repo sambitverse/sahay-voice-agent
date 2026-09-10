@@ -49,8 +49,10 @@ async def websocket_client_endpoint(websocket: WebSocket, call_id: str):
     await handle_client_websocket(websocket, call_id)
 
 
+@app.websocket("/ws/exotel")
+@app.websocket("/ws/exotel/")
 @app.websocket("/ws/exotel/{call_id}")
-async def websocket_exotel_endpoint(websocket: WebSocket, call_id: str):
+async def websocket_exotel_endpoint(websocket: WebSocket, call_id: str = "live_call"):
     """Exotel Telephony AgentStream WebSocket endpoint."""
     await handle_exotel_websocket(websocket, call_id)
 

@@ -172,9 +172,13 @@ async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
                     session.caller_phone = caller_phone
                     session.phone_hash = SupabaseManager.hash_phone(caller_phone)
 
+                    actual_call_id = start_info.get("call_sid") or start_info.get("CallSid")
+                    if actual_call_id and actual_call_id != "live_call":
+                        session.call_id = actual_call_id
+
                     logger.info(
                         f"[ExotelWS] Call Stream started: stream_sid={stream_sid}, "
-                        f"caller={caller_phone}, is_ulaw={is_ulaw}"
+                        f"caller={caller_phone}, call_id={session.call_id}, is_ulaw={is_ulaw}"
                     )
 
                     # Trigger initial Odia voice greeting immediately at connection

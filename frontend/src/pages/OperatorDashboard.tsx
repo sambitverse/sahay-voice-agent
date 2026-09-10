@@ -38,7 +38,7 @@ const INITIAL_QUEUE: QueueItem[] = [
     id: 'Q-101',
     call_id: 'call_9901_forest',
     caller_number: '+91 94371-XXXXX (Dhenkanal)',
-    channel: 'EXOTEL CARRIER (095-138-86363)',
+    channel: 'EXOTEL CARRIER (08047283123)',
     timestamp: 'Just now (00:42)',
     risk_level: 'CRITICAL',
     svi_score: 0.94,
