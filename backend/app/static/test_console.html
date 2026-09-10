@@ -895,8 +895,8 @@
             speechBuffer.push(pcm16); // Include trailing context
             const pauseElapsed = Date.now() - silenceStart;
 
-            // Rapid 450ms Turn Commitment for sub-second conversational latency:
-            if (pauseElapsed > 450) {
+            // Calibrated 750ms Turn Commitment for 2.5 - 3.0s total conversational turnaround:
+            if (pauseElapsed > 750) {
               isSpeaking = false;
               // Minimum utterance filter: Require at least 3 frames (~384ms) of speech
               if (speechBuffer.length >= 3) {

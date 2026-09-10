@@ -123,11 +123,11 @@ class ClientAudioSession:
                 self.vad.reset()
                 asyncio.create_task(self._process_utterance(utterance_bytes, websocket))
         else:
-            # End of utterance triggered after ~260ms silence hangover
-            # Require at least 250ms of recorded speech to prevent ambient clicks
-            if len(self.audio_buffer) >= int(16000 * 2 * 0.25):
-                # Trim trailing silence (~250ms) so STT doesn't waste time transcribing dead air
-                trailing_silence_bytes = int(16000 * 2 * 0.25)
+            # End of utterance triggered after ~750ms silence hangover (calibrated for 2.5 - 3.0s total conversational turnaround)
+            # Require at least 350ms of recorded speech to prevent ambient clicks
+            if len(self.audio_buffer) >= int(16000 * 2 * 0.35):
+                # Trim trailing silence (~450ms) so STT doesn't waste time transcribing dead air
+                trailing_silence_bytes = int(16000 * 2 * 0.45)
                 if len(self.audio_buffer) > trailing_silence_bytes + int(16000 * 2 * 0.15):
                     utterance_bytes = bytes(self.audio_buffer[:-trailing_silence_bytes])
                 else:
