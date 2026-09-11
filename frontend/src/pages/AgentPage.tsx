@@ -31,8 +31,7 @@ const getWebSocketBaseUrl = () => {
   if (isLocalEnvironment()) {
     return `ws://${window.location.hostname === 'localhost' ? 'localhost' : '127.0.0.1'}:8000`;
   }
-  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${protocol}://${window.location.host}`;
+  return 'wss://sahay.up.railway.app';
 };
 
 const resampleTo16k = (samples: Float32Array, originalRate: number): Int16Array => {
@@ -589,9 +588,7 @@ export const AgentPage: React.FC = () => {
 
           processor.onaudioprocess = (event) => {
             if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-            if (!isListeningNowRef.current || isAiSpeakingOutLoudRef.current) {
-              return;
-            }
+            if (!isCallingRef.current) return;
             const input = event.inputBuffer.getChannelData(0);
             const pcm16 = resampleTo16k(input, audioContext.sampleRate || 48000);
             const payload = new ArrayBuffer(pcm16.length * 2);
@@ -809,6 +806,22 @@ export const AgentPage: React.FC = () => {
             });
           }
 
+          if (payload.event === 'clear') {
+            if (audioPlaybackRef.current) {
+              audioPlaybackRef.current.pause();
+            }
+            if (audioTimeoutRef.current) {
+              clearTimeout(audioTimeoutRef.current);
+              audioTimeoutRef.current = null;
+            }
+            setIsAiSpeakingOutLoud(false);
+            isAiSpeakingOutLoudRef.current = false;
+            setIsAiThinking(false);
+            isListeningNowRef.current = true;
+            setIsListeningNow(true);
+            setVoiceStatus('🟢 Listening now — please speak your message.');
+          }
+
           if (payload.event === 'agent_response' && payload.text) {
             setIsAiThinking(false);
             const agentText = payload.text;
@@ -841,6 +854,13 @@ export const AgentPage: React.FC = () => {
 
             hasReceivedAudioRef.current = false;
             if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+            // Safety timeout: if TTS media does not arrive within 3.5s, switch back to listening
+            audioTimeoutRef.current = window.setTimeout(() => {
+              if (!hasReceivedAudioRef.current) {
+                console.log('[VoiceAgent] Audio timeout fallback triggered: listening now');
+                handleAiSpeechCompleted();
+              }
+            }, 3500);
           }
 
           if (payload.event === 'media' && payload.payload) {
@@ -868,8 +888,20 @@ export const AgentPage: React.FC = () => {
               const audio = new Audio(audioUrl);
               audio.playbackRate = speechSpeed;
               audioPlaybackRef.current = audio;
-              audio.onended = () => {
+
+              // Playback duration safety timeout in case audio.onended fails to fire
+              const approxDurationMs = Math.max(3000, (audioBytes.length / 32) + 1200);
+              audioTimeoutRef.current = window.setTimeout(() => {
                 handleAiSpeechCompleted();
+              }, approxDurationMs);
+
+              audio.onended = () => {
+                if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+                handleAiSpeechCompleted();
+              };
+              audio.onerror = () => {
+                if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+                speakAiResponse(latestAgentTextRef.current, payload.language);
               };
               audio.play().catch(() => {
                 speakAiResponse(latestAgentTextRef.current, payload.language);
@@ -1247,70 +1279,7 @@ export const AgentPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Quick Voice Test Chips */}
-                    <div style={{ marginBottom: '24px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em' }}>
-                        Quick Spoken Test Scenarios:
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("Mate maribaku godauchanti mu ebe jangala re nuchiki achi")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🏛️ Forest Pursuit (Odia)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("Mujhe emergency help chahiye, yahan ladai ho rahi hai aur dhamki mil rahi hai.")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🇮🇳 Emergency Help (Hindi)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("I need urgent legal assistance regarding threat, violence, and harassment.")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🌍 Legal Aid (English)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("Bir re ukanakana, panjayedina, botor ge aikawkana, banchaoing pe.")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🏹 Forest Threat (Santali)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("Mor pache padila, godauche, bhay laguche, dada banchao.")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🌾 Pursuit Crisis (Desia)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("Aanu bana re huji, aane gahi laguri, dohpa banchao.")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🌿 Forest Distress (Kui)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSendVoiceChat("Aane gahi laguri, mera bhanguchhanti, kaan banchao.")}
-                          className="button secondary small w-button"
-                          style={{ fontSize: '11.5px', padding: '5px 10px', background: '#fff', border: '1px solid #cbd5e1' }}
-                        >
-                          🍃 Village Attack (Kuvi)
-                        </button>
-                      </div>
-                    </div>
+
                   </div>
 
                   {/* Caller ID input & User Dashboard Link */}
