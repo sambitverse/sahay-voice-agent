@@ -62,64 +62,7 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_call_id ON voice_recordings(call_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON voice_recordings(created_at DESC);")
 
-            # Check if seeded
-            cur = conn.execute("SELECT COUNT(*) as count FROM voice_recordings;")
-            count = cur.fetchone()["count"]
-            if count == 0:
-                logger.info("[RecordingsDB] Seeding initial verified citizen recordings...")
-                rec_dir = os.path.join(os.path.dirname(__file__), "..", "static", "recordings")
-                initial_records = [
-                    (
-                        "call_9901_forest",
-                        "Alekha Majhi",
-                        "+91 94371-88210",
-                        normalize_phone("+91 94371-88210"),
-                        "citizen_8821",
-                        "Today, 22:45",
-                        14.0,
-                        os.path.join(rec_dir, "call_9901_forest.wav"),
-                        "/api/v1/recordings/call_9901_forest.wav",
-                        "CRITICAL",
-                        "Outdoor pursuit in forest. Spatial wilderness protocol engaged; zero door-locking hallucination. PCR 112 dispatched to road landmark.",
-                        "or-IN"
-                    ),
-                    (
-                        "call_9902_boycott",
-                        "Manoj Nayak",
-                        "+91 98610-44120",
-                        normalize_phone("+91 98610-44120"),
-                        "citizen_4412",
-                        "Yesterday, 14:15",
-                        16.0,
-                        os.path.join(rec_dir, "call_9902_boycott.wav"),
-                        "/api/v1/recordings/call_9902_boycott.wav",
-                        "HIGH",
-                        "Social boycott and tube well drinking water access denial. Kosli/Desia dialect normalized. Statutory Section 15A complaint prepared.",
-                        "sp-IN"
-                    ),
-                    (
-                        "call_9903_intimidation",
-                        "Sunita Hembram",
-                        "+91 97782-10543",
-                        normalize_phone("+91 97782-10543"),
-                        "citizen_0543",
-                        "07 Sep 2026, 19:30",
-                        18.5,
-                        os.path.join(rec_dir, "call_9903_intimidation.wav"),
-                        "/api/v1/recordings/call_9901_forest.wav",
-                        "HIGH",
-                        "Midnight intimidation by moneylender syndicate outside residence. DLSA interim witness protection notice dispatched.",
-                        "sat-IN"
-                    )
-                ]
-
-                conn.executemany("""
-                    INSERT OR IGNORE INTO voice_recordings (
-                        call_id, caller_name, caller_phone, phone_normalized, user_id,
-                        timestamp, duration_seconds, file_path, recording_url, risk_level, summary, language
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """, initial_records)
-                logger.info("[RecordingsDB] Seeded 3 verified voice recordings.")
+            logger.info("[RecordingsDB] Initialized voice_recordings table and indexes.")
     except Exception as e:
         logger.error(f"[RecordingsDB] Error initializing database: {e}", exc_info=True)
     finally:

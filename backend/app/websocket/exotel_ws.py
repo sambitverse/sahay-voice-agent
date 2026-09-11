@@ -1,4 +1,5 @@
 import os
+import re
 import wave
 import uuid
 import datetime
@@ -155,6 +156,7 @@ async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
 
                         # Resample to 16kHz linear PCM for AI perception
                         pcm_16k = resampler.resample_8k_to_16k(pcm_8k)
+                        session.caller_audio_record.extend(pcm_16k)
                         await session.handle_audio_frame(pcm_16k, adapter)
 
                 elif event == "start":
@@ -245,44 +247,76 @@ async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
     finally:
         adapter.is_closed = True
 
-        # 1. Save Telephony Call Audio Recording to Disk
-        recording_url = f"/api/v1/recordings/{call_id}.wav"
-        if len(session.caller_audio_record) > 0:
-            try:
-                rec_dir = os.path.join(os.path.dirname(__file__), "..", "static", "recordings")
-                os.makedirs(rec_dir, exist_ok=True)
-                wav_path = os.path.join(rec_dir, f"{call_id}.wav")
-                with wave.open(wav_path, "wb") as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(16000)
-                    wf.writeframes(bytes(session.caller_audio_record))
-                logger.info(f"[ExotelWS] Saved telephony audio recording to {wav_path} ({len(session.caller_audio_record)} bytes)")
-            except Exception as e:
-                logger.warning(f"[ExotelWS] Could not write telephony audio recording file: {e}")
-
-        # 2. Register Grievance Record in Database for Caller Dashboard
         caller_num = getattr(session, "caller_phone", None) or call_id
-        duration_s = len(session.caller_audio_record) / 32000.0
+        duration_s = len(session.caller_audio_record) / 32000.0 if len(session.caller_audio_record) > 0 else 0.0
         user_texts = [t["content"] for t in session.full_transcript if t.get("role") in ("caller", "user")]
         summary = user_texts[0] if user_texts else f"Telephony Helpline Call ({duration_s:.0f}s)"
         risk_lvl = session.distress_state.current_level.value if hasattr(session.distress_state, "current_level") else "HIGH"
         tkt_ref = f"TKT-{datetime.datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
 
-        try:
-            complaint = session.db.register_complaint(
-                call_id=call_id,
-                ticket_id=tkt_ref,
-                summary=summary,
-                risk_level=risk_lvl,
-                caller_number=caller_num,
-                language=session.language_router.get_session_language(call_id).value,
-                recording_url=recording_url
-            )
-            await broadcaster.broadcast("complaint_registered", complaint)
-            logger.info(f"[ExotelWS] Registered telephony complaint {tkt_ref} for {caller_num}")
-        except Exception as e:
-            logger.warning(f"[ExotelWS] Could not register complaint: {e}")
+        # Standardize mobile number format for storage and filename
+        raw_phone = str(caller_num).strip()
+        phone_digits = re.sub(r"\D", "", raw_phone)
+        if phone_digits:
+            clean_mobile = f"+91{phone_digits[-10:]}" if len(phone_digits) >= 10 and not raw_phone.startswith("+") else raw_phone
+            file_mobile = re.sub(r"[^\d+]", "", raw_phone) or phone_digits
+        else:
+            clean_mobile = raw_phone
+            file_mobile = re.sub(r"[^\w+]", "", raw_phone) or call_id
+
+        rec_dir = os.path.join(os.path.dirname(__file__), "..", "static", "recordings")
+        os.makedirs(rec_dir, exist_ok=True)
+        rec_filename = f"{file_mobile}.wav"
+        wav_path = os.path.join(rec_dir, rec_filename)
+        recording_url = f"/api/v1/recordings/{rec_filename}"
+
+        # ONLY add real-time call recordings with captured caller audio
+        if len(session.caller_audio_record) > 0:
+            try:
+                with wave.open(wav_path, "wb") as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(16000)
+                    wf.writeframes(bytes(session.caller_audio_record))
+                logger.info(f"[ExotelWS] Saved real-time telephony audio recording to {wav_path} ({len(session.caller_audio_record)} bytes)")
+            except Exception as e:
+                logger.warning(f"[ExotelWS] Could not write telephony audio recording file: {e}")
+
+            # Store in database as their mobile number
+            try:
+                from app.database import recordings_db
+                lang_val = session.language_router.get_session_language(call_id).value
+                rec_entry = recordings_db.save_recording(
+                    call_id=file_mobile,
+                    caller_name=clean_mobile,
+                    caller_phone=clean_mobile,
+                    duration_seconds=round(duration_s, 1),
+                    file_path=wav_path,
+                    recording_url=recording_url,
+                    risk_level=risk_lvl,
+                    summary=summary,
+                    language=lang_val
+                )
+                await broadcaster.broadcast("recording_saved", rec_entry)
+                logger.info(f"[ExotelWS] Stored real-time call recording in database as mobile number: {clean_mobile} -> {wav_path}")
+            except Exception as dbe:
+                logger.error(f"[ExotelWS] Failed to save Exotel recording to recordings_db: {dbe}")
+
+            # Register Grievance Record in Database for Caller Dashboard
+            try:
+                complaint = session.db.register_complaint(
+                    call_id=file_mobile,
+                    ticket_id=tkt_ref,
+                    summary=summary,
+                    risk_level=risk_lvl,
+                    caller_number=clean_mobile,
+                    language=session.language_router.get_session_language(call_id).value,
+                    recording_url=recording_url
+                )
+                await broadcaster.broadcast("complaint_registered", complaint)
+                logger.info(f"[ExotelWS] Registered telephony complaint {tkt_ref} for {clean_mobile}")
+            except Exception as e:
+                logger.warning(f"[ExotelWS] Could not register complaint: {e}")
 
         await session.db.update_call_status(call_id, "completed")
         await broadcaster.broadcast("call_ended", {"call_id": call_id})
