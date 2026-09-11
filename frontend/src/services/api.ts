@@ -134,12 +134,12 @@ export const api = {
   },
 
   /** Send Text Chat Message to Trauma Agent */
-  async sendChatMessage(message: string, languageCode: string = 'unknown') {
+  async sendChatMessage(message: string, languageCode: string = 'unknown', skipTts: boolean = false) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/chat/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, language: languageCode }),
+        body: JSON.stringify({ message, language: languageCode, skip_tts: skipTts }),
       });
       if (res.ok) return await res.json();
     } catch {

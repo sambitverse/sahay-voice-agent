@@ -367,25 +367,76 @@ class ClientAudioSession:
             self.turn_count += 1
             logger.info(f"[Session {self.call_id}] Starting turn {self.turn_count} perception: '{raw_transcript}' (lang: {raw_detected_lang})")
 
-            hint_lc = (language_hint or "").lower()
+            hint_lc = (language_hint or "").lower().strip()
             odia_chars = len(re.findall(r'[\u0b00-\u0b7f]', raw_transcript))
             hindi_chars = len(re.findall(r'[\u0900-\u0963\u0966-\u097f]', raw_transcript))
+            ol_chiki_chars = len(re.findall(r'[\u1c50-\u1c7f]', raw_transcript))
 
-            if "hi" in hint_lc or (hindi_chars > 0 and odia_chars == 0):
-                class _HindiLang:
-                    value = "hi-IN"
-                active_lang = _HindiLang()
+            class _DynamicLang:
+                def __init__(self, val: str):
+                    self.value = val
+                def __eq__(self, other):
+                    if hasattr(other, "value"):
+                        return self.value == other.value
+                    return self.value == str(other)
+                def __str__(self):
+                    return self.value
+
+            # 1. Explicit language hint from client/caller
+            if "hi" in hint_lc:
+                active_lang = _DynamicLang("hi-IN")
+            elif "en" in hint_lc:
+                active_lang = SupportedLanguage.ENGLISH
+            elif "sat" in hint_lc:
+                active_lang = SupportedLanguage.SANTALI
+            elif "des" in hint_lc:
+                active_lang = SupportedLanguage.DESIA
+            elif "kuvi" in hint_lc:
+                active_lang = _DynamicLang("kuvi-IN")
+            elif "kui" in hint_lc:
+                active_lang = SupportedLanguage.KUI
+            elif "sp" in hint_lc or "sambal" in hint_lc:
+                active_lang = SupportedLanguage.SAMBALPURI
+            elif "or" in hint_lc or "od" in hint_lc:
+                active_lang = SupportedLanguage.ODIA
+            # 2. Native script ranges
+            elif ol_chiki_chars > 0:
+                active_lang = SupportedLanguage.SANTALI
+            elif hindi_chars > 0 and odia_chars == 0:
+                active_lang = _DynamicLang("hi-IN")
             elif odia_chars > 0:
                 active_lang = SupportedLanguage.ODIA
             else:
-                active_lang = self.language_router.resolve_language(
-                    call_id=self.call_id,
-                    transcript=raw_transcript,
-                    stt_detected_lang=raw_detected_lang,
-                    language_hint=language_hint
-                )
+                # 3. Phonetic and keyword analysis for Romanized text
+                t_words = set(re.findall(r'\b[a-zA-Z]+\b', raw_transcript.lower()))
+                if any(w in t_words for w in ["ukanakana", "panjayedina", "gojing", "dalan", "botor", "aikawkana", "banchaoing"]):
+                    active_lang = SupportedLanguage.SANTALI
+                elif any(w in t_words for w in ["godauche", "laguche", "sunba", "dhukila", "padila", "banchao", "khedi", "delu"]):
+                    active_lang = SupportedLanguage.DESIA
+                elif any(w in t_words for w in ["aanu", "aane", "aanki", "gida", "mera", "haji", "gahi", "vespa", "naju", "iddu", "daha", "dohpa"]):
+                    active_lang = SupportedLanguage.KUI
+                elif any(w in t_words for w in ["kanje", "godauchhan", "godauchhe", "marba", "deuchhe", "karchhe", "dongar"]):
+                    active_lang = SupportedLanguage.SAMBALPURI
+                elif any(w in t_words for w in ["main", "mujhe", "mera", "meri", "mere", "aap", "aapka", "hai", "hain", "nahi", "madad", "bachao", "kripya", "thana", "shikayat", "darj", "surakshit", "chinta", "rahein", "chahiye", "yahan", "ladai", "rahi", "raha", "aur", "dhamki", "batao", "bataiye"]):
+                    active_lang = _DynamicLang("hi-IN")
+                elif any(w in t_words for w in ["mu", "mate", "mora", "mor", "tume", "apan", "apananka", "achhi", "achhanti", "maribaku", "nuchiki", "achi", "ebe", "sahajya", "marideba", "bhanguchhanti", "godauchanti"]):
+                    active_lang = SupportedLanguage.ODIA
+                elif any(w in t_words for w in ["i", "need", "urgent", "legal", "assistance", "regarding", "threat", "violence", "harassment", "help", "emergency", "please", "police", "safe"]):
+                    active_lang = SupportedLanguage.ENGLISH
+                else:
+                    active_lang = self.language_router.resolve_language(
+                        call_id=self.call_id,
+                        transcript=raw_transcript,
+                        stt_detected_lang=raw_detected_lang,
+                        language_hint=language_hint
+                    )
+
             self.active_lang = active_lang
             self.latest_transcript = raw_transcript
+            if hasattr(self.language_router, "session_languages") and hasattr(active_lang, "value"):
+                self.language_router.session_languages[self.call_id] = (
+                    self.language_router.normalize_language_code(active_lang.value), 0.95
+                )
 
             if self.turn_count == 1 and self.conversation_history:
                 target_greeting = GREETINGS_TEXT.get(active_lang.value, GREETINGS_TEXT["or-IN"])
@@ -745,34 +796,14 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
                 elif event in ("user_speech", "chat_message"):
                     user_text = data.get("text", "").strip()
                     if user_text:
-                        if session.is_ai_speaking or session.turn_in_progress:
-                            logger.info(f"[WebSocket] Dropping user input: AI speaking or turn in progress for {call_id}: '{user_text}'")
-                            continue
-
-                        # Echo suppression
-                        is_echo = False
-                        recent_agent_texts = [_CACHED_GREETING_TEXT.lower()]
-                        if session.conversation_history:
-                            recent_agent_texts.extend([
-                                msg.get("content", "").lower()
-                                for msg in session.conversation_history[-4:]
-                                if msg.get("role") in ("agent", "model")
-                            ])
-                        u_clean = re.sub(r'[^\w\s]', '', user_text.lower()).strip()
-                        u_words = [w for w in u_clean.split() if len(w) > 2]
-                        if u_words:
-                            for a_text in recent_agent_texts:
-                                a_clean = re.sub(r'[^\w\s]', '', a_text).strip()
-                                if u_clean in a_clean or a_clean in u_clean:
-                                    is_echo = True
-                                    break
-                                matches = sum(1 for w in u_words if w in a_clean)
-                                if matches / len(u_words) >= 0.40:
-                                    is_echo = True
-                                    break
-                        if is_echo:
-                            logger.info(f"[WebSocket] Suppressed acoustic echo from client microphone for {call_id}: '{user_text}'")
-                            continue
+                        # Direct user text/chat input from voice stream page:
+                        # If AI is currently speaking, treat user input as immediate barge-in
+                        if session.is_ai_speaking:
+                            logger.info(f"[WebSocket] Quick chat interrupting AI speech for {call_id}: '{user_text}'")
+                            session.is_ai_speaking = False
+                            if session.current_tts_task and not session.current_tts_task.done():
+                                session.current_tts_task.cancel()
+                        session.turn_in_progress = False
 
                         logger.info(f"[WebSocket] User direct speech/text received for {call_id}: '{user_text}'")
                         lang_hint = data.get("language")

@@ -62,6 +62,7 @@ class LoginRequest(BaseModel):
 class ChatMessageRequest(BaseModel):
     message: str
     language: str = "unknown"
+    skip_tts: bool = False
 
 # In-memory storage for website contacts and chat sessions
 contact_submissions: List[Dict[str, Any]] = []
@@ -377,16 +378,46 @@ async def send_chat_message(req: ChatMessageRequest):
     req_lang_lower = (req.language or "").lower()
     odia_chars = len(re.findall(r'[\u0b00-\u0b7f]', text))
     hindi_chars = len(re.findall(r'[\u0900-\u0963\u0966-\u097f]', text))
+    ol_chiki_chars = len(re.findall(r'[\u1c50-\u1c7f]', text))
 
     if "hi" in req_lang_lower or (hindi_chars > 0 and odia_chars == 0):
         effective_lang = "hi-IN"
+    elif "kuvi" in req_lang_lower:
+        effective_lang = "kuvi-IN"
+    elif "kui" in req_lang_lower:
+        effective_lang = "kui-IN"
+    elif "sat" in req_lang_lower or ol_chiki_chars > 0:
+        effective_lang = "sat-IN"
+    elif "des" in req_lang_lower:
+        effective_lang = "des-IN"
+    elif "en" in req_lang_lower:
+        effective_lang = "en-IN"
     elif odia_chars > 0 or "or" in req_lang_lower or "od" in req_lang_lower:
         effective_lang = "or-IN"
-    elif req.language and req_lang_lower != "unknown":
+    elif req.language and req_lang_lower not in ("unknown", "auto"):
         effective_lang = language_router.normalize_language_code(req.language).value
     else:
-        detected_enum, _ = language_router.detect_language_from_text(text)
-        effective_lang = detected_enum.value
+        t_words = set(re.findall(r'\b[a-zA-Z]+\b', text.lower()))
+        hindi_kws = {"main", "mujhe", "mera", "meri", "mere", "aap", "aapka", "hai", "hain", "nahi",
+                     "madad", "bachao", "kripya", "thana", "shikayat", "darj", "surakshit",
+                     "chinta", "rahein", "chahiye", "yahan", "ladai", "rahi", "raha", "aur", "dhamki"}
+        odia_kws = {"mu", "mate", "mora", "mor", "tume", "apan", "apananka", "achhi", "achhanti",
+                    "maribaku", "nuchiki", "achi", "ebe", "sahajya", "bhanguchhanti", "godauchanti"}
+        if len(t_words.intersection(hindi_kws)) > 0:
+            effective_lang = "hi-IN"
+        elif len(t_words.intersection(odia_kws)) > 0:
+            effective_lang = "or-IN"
+        elif any(w in t_words for w in ["ukanakana", "panjayedina", "botor", "banchaoing"]):
+            effective_lang = "sat-IN"
+        elif any(w in t_words for w in ["godauche", "laguche", "padila"]):
+            effective_lang = "des-IN"
+        elif any(w in t_words for w in ["aanu", "aane", "gahi", "dohpa"]):
+            effective_lang = "kui-IN"
+        elif any(w in t_words for w in ["i", "need", "urgent", "legal", "assistance", "regarding", "threat", "violence", "help", "please"]):
+            effective_lang = "en-IN"
+        else:
+            detected_enum, _ = language_router.detect_language_from_text(text)
+            effective_lang = detected_enum.value
 
     normalized_text = DialectBridge.normalize_dialect(text, effective_lang)
 
@@ -400,13 +431,14 @@ async def send_chat_message(req: ChatMessageRequest):
             lang_key = "or"
         refusal_text = SafetyValidator.OUT_OF_SCOPE_RESPONSES.get(lang_key, SafetyValidator.OUT_OF_SCOPE_RESPONSES["or"])
         audio_b64 = None
-        try:
-            if hybrid_speech.is_configured():
-                tts_audio = await hybrid_speech.synthesize(refusal_text, effective_lang)
-                if tts_audio and len(tts_audio) > 100:
-                    audio_b64 = base64.b64encode(tts_audio).decode("utf-8")
-        except Exception as e:
-            logger.warning(f"[Chat API] Out-of-scope TTS exception: {e}")
+        if not req.skip_tts:
+            try:
+                if hybrid_speech.is_configured():
+                    tts_audio = await hybrid_speech.synthesize(refusal_text, effective_lang)
+                    if tts_audio and len(tts_audio) > 100:
+                        audio_b64 = base64.b64encode(tts_audio).decode("utf-8")
+            except Exception as e:
+                logger.warning(f"[Chat API] Out-of-scope TTS exception: {e}")
         return {
             "text": refusal_text,
             "risk_level": "LOW",
@@ -515,15 +547,16 @@ async def send_chat_message(req: ChatMessageRequest):
     # Final post-generation guardrail verification
     validated_response, _ = SafetyValidator.validate(safe_response, effective_lang, text)
 
-    # High-accuracy speech generation via Bhashini & Sarvam
+    # High-accuracy speech generation via Bhashini & Sarvam (skipped for text-only guidance chat)
     audio_b64 = None
-    try:
-        if hybrid_speech.is_configured():
-            tts_audio = await hybrid_speech.synthesize(validated_response, effective_lang)
-            if tts_audio and len(tts_audio) > 100:
-                audio_b64 = base64.b64encode(tts_audio).decode("utf-8")
-    except Exception as e:
-        logger.warning(f"[Chat API] Speech synthesis exception: {e}")
+    if not req.skip_tts:
+        try:
+            if hybrid_speech.is_configured():
+                tts_audio = await hybrid_speech.synthesize(validated_response, effective_lang)
+                if tts_audio and len(tts_audio) > 100:
+                    audio_b64 = base64.b64encode(tts_audio).decode("utf-8")
+        except Exception as e:
+            logger.warning(f"[Chat API] Speech synthesis exception: {e}")
 
     return {
         "text": validated_response,

@@ -960,14 +960,29 @@ export const AgentPage: React.FC = () => {
     setIsAiThinking(true);
     setVoiceStatus('Processing user message & generating response...');
 
+    // Detect language of the input text so agent responds in the same language
+    const detectedLang = detectChatLanguage(textToSend);
+    const langCodeMap: Record<string, string> = {
+      'Odia': 'or-IN',
+      'Hindi': 'hi-IN',
+      'English': 'en-IN',
+      'Santali': 'sat-IN',
+      'Desia': 'des-IN',
+      'Kui': 'kui-IN',
+      'Kuvi': 'kuvi-IN'
+    };
+    const effectiveLang = (preferredLanguage && preferredLanguage !== 'auto')
+      ? preferredLanguage
+      : (langCodeMap[detectedLang] || 'or-IN');
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         event: 'user_speech',
         text: textToSend,
-        language: preferredLanguage === 'auto' ? undefined : preferredLanguage
+        language: effectiveLang
       }));
     } else {
-      api.sendChatMessage(textToSend, preferredLanguage === 'auto' ? undefined : preferredLanguage).then((res) => {
+      api.sendChatMessage(textToSend, effectiveLang).then((res) => {
         setIsAiThinking(false);
         setVoiceChatMessages((prev) => [
           ...prev,
@@ -1012,8 +1027,23 @@ export const AgentPage: React.FC = () => {
     setInputMessage('');
     setIsTyping(true);
 
+    const detectedLang = detectChatLanguage(textToSend);
+    const langCodeMap: Record<string, string> = {
+      'Odia': 'or-IN',
+      'Hindi': 'hi-IN',
+      'English': 'en-IN',
+      'Santali': 'sat-IN',
+      'Desia': 'des-IN',
+      'Kui': 'kui-IN',
+      'Kuvi': 'kuvi-IN'
+    };
+    const effectiveLang = (preferredLanguage && preferredLanguage !== 'auto')
+      ? preferredLanguage
+      : (langCodeMap[detectedLang] || 'or-IN');
+
     try {
-      const res = await api.sendChatMessage(textToSend, preferredLanguage === 'auto' ? undefined : preferredLanguage);
+      // In text guidance chat, only text response is needed (skip voice synthesis and audio playback)
+      const res = await api.sendChatMessage(textToSend, effectiveLang, true);
       setChatMessages([
         ...newMsgs,
         {
@@ -1022,16 +1052,6 @@ export const AgentPage: React.FC = () => {
           risk: res.risk_level
         }
       ]);
-      if (res && res.audio_b64) {
-        try {
-          const audioBytes = Uint8Array.from(atob(res.audio_b64), (c) => c.charCodeAt(0));
-          const audioBlob = new Blob([audioBytes], { type: 'audio/wav' });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = new Audio(audioUrl);
-          audio.playbackRate = speechSpeed;
-          audio.play().catch(() => {});
-        } catch {}
-      }
     } catch {
       setChatMessages([
         ...newMsgs,
