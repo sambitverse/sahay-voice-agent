@@ -167,6 +167,7 @@ class ClientAudioSession:
                 self.active_lang = SupportedLanguage.ODIA
         else:
             self.active_lang = SupportedLanguage.ODIA
+            self.language_router.set_session_language(self.call_id, "or-IN")
 
         await self.db.create_call_session(
             external_call_id=self.call_id,
@@ -309,11 +310,8 @@ class ClientAudioSession:
                         self.turn_in_progress = False
                         return
 
-                if self.turn_count == 0:
-                    mapped_lang = "unknown"
-                else:
-                    current_lang = self.language_router.get_session_language(self.call_id)
-                    mapped_lang = "od-IN" if "or" in current_lang.value.lower() else current_lang.value
+                current_lang = self.language_router.get_session_language(self.call_id)
+                mapped_lang = "od-IN" if ("or" in current_lang.value.lower() or current_lang.value == "unknown") else current_lang.value
 
                 if self.speech.is_configured():
                     stt_task = asyncio.create_task(self.speech.transcribe(audio_bytes, 16000, language_code=mapped_lang))
@@ -349,10 +347,15 @@ class ClientAudioSession:
             logger.info(f"[Session {self.call_id}] Starting turn {self.turn_count} perception: '{raw_transcript}' (lang: {raw_detected_lang})")
 
             hint_lc = (language_hint or "").lower()
-            if "hi" in hint_lc or bool(re.search(r'[\u0900-\u097f]', raw_transcript)):
+            odia_chars = len(re.findall(r'[\u0b00-\u0b7f]', raw_transcript))
+            hindi_chars = len(re.findall(r'[\u0900-\u0963\u0966-\u097f]', raw_transcript))
+
+            if "hi" in hint_lc or (hindi_chars > 0 and odia_chars == 0):
                 class _HindiLang:
                     value = "hi-IN"
                 active_lang = _HindiLang()
+            elif odia_chars > 0:
+                active_lang = SupportedLanguage.ODIA
             else:
                 active_lang = self.language_router.resolve_language(
                     call_id=self.call_id,

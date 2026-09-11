@@ -375,8 +375,13 @@ async def send_chat_message(req: ChatMessageRequest):
     
     # 2. Language & dialect normalization
     req_lang_lower = (req.language or "").lower()
-    if "hi" in req_lang_lower or re.search(r'[\u0900-\u097f]', text):
+    odia_chars = len(re.findall(r'[\u0b00-\u0b7f]', text))
+    hindi_chars = len(re.findall(r'[\u0900-\u0963\u0966-\u097f]', text))
+
+    if "hi" in req_lang_lower or (hindi_chars > 0 and odia_chars == 0):
         effective_lang = "hi-IN"
+    elif odia_chars > 0 or "or" in req_lang_lower or "od" in req_lang_lower:
+        effective_lang = "or-IN"
     elif req.language and req_lang_lower != "unknown":
         effective_lang = language_router.normalize_language_code(req.language).value
     else:
