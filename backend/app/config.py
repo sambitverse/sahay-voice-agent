@@ -36,8 +36,8 @@ try:
         EXOTEL_VIRTUAL_NUMBER: str = os.getenv("EXOTEL_VIRTUAL_NUMBER") or os.getenv("EXOTEL_PHONE_NUMBER", "")
         EXOTEL_APP_ID: str = os.getenv("EXOTEL_APP_ID", "")
 
-        SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "")
-        SARVAM_BASE_URL: str = os.getenv("SARVAM_BASE_URL", "https://api.sarvam.ai")
+        SARVAM_API_KEY: str = (os.getenv("SARVAM_API_KEY") or "").strip().strip("\"'")
+        SARVAM_BASE_URL: str = (os.getenv("SARVAM_BASE_URL") or "https://api.sarvam.ai").strip().strip("\"'")
 
         BHASHINI_API_KEY: str = (os.getenv("BHASHINI_API_KEY") or "").strip("\"'")
         BHASHINI_USER_ID: str = (os.getenv("BHASHINI_USER_ID") or "").strip("\"'")

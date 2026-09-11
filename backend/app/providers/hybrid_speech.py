@@ -24,7 +24,7 @@ class HybridSpeechProvider(SpeechToTextProvider, TextToSpeechProvider):
         bhashini_user_id: str = "",
         bhashini_api_key: str = "",
         bhashini_inference_url: str = "https://dhruva-api.bhashini.gov.in",
-        primary_provider: str = "bhashini"
+        primary_provider: str = "sarvam"
     ):
         self.primary_provider = primary_provider.lower()
         self.sarvam = SarvamProvider(api_key=sarvam_api_key, base_url=sarvam_base_url)
@@ -47,24 +47,26 @@ class HybridSpeechProvider(SpeechToTextProvider, TextToSpeechProvider):
         first, second = (self.sarvam, self.bhashini) if self.primary_provider == "sarvam" else (self.bhashini, self.sarvam)
         first_name, second_name = ("Sarvam", "Bhashini") if self.primary_provider == "sarvam" else ("Bhashini", "Sarvam")
 
-        try:
-            transcript, lang, conf = await first.transcribe(audio_bytes, sample_rate, language_code)
-            if transcript.strip():
-                return transcript, lang, conf
-            logger.info(f"[HybridSpeechProvider] {first_name} STT returned empty. Trying {second_name}...")
-        except Exception as e:
-            logger.warning(f"[HybridSpeechProvider] {first_name} STT failed: {e}. Failing over to {second_name}...")
+        if first.is_configured():
+            try:
+                transcript, lang, conf = await first.transcribe(audio_bytes, sample_rate, language_code)
+                if transcript.strip():
+                    return transcript, lang, conf
+                logger.info(f"[HybridSpeechProvider] {first_name} STT returned empty. Trying {second_name}...")
+            except Exception as e:
+                logger.warning(f"[HybridSpeechProvider] {first_name} STT failed: {e}. Failing over to {second_name}...")
 
         # Fallover to second provider
-        try:
-            logger.info(f"[HybridSpeechProvider] Routing STT to {second_name}...")
-            transcript, lang, conf = await second.transcribe(audio_bytes, sample_rate, language_code)
-            if transcript.strip():
-                return transcript, lang, conf
-        except Exception as e:
-            logger.error(f"[HybridSpeechProvider] Both {first_name} and {second_name} STT failed: {e}.")
+        if second.is_configured():
+            try:
+                logger.info(f"[HybridSpeechProvider] Routing STT to {second_name}...")
+                transcript, lang, conf = await second.transcribe(audio_bytes, sample_rate, language_code)
+                if transcript.strip():
+                    return transcript, lang, conf
+            except Exception as e:
+                logger.error(f"[HybridSpeechProvider] Both {first_name} and {second_name} STT failed: {e}.")
 
-        return "", language_code or "or-IN", 0.0
+        return await self.mock_fallback.transcribe(audio_bytes, sample_rate, language_code)
 
     async def synthesize(
         self, text: str, language_code: str = "or-IN", speaker_gender: str = "female"
@@ -73,24 +75,26 @@ class HybridSpeechProvider(SpeechToTextProvider, TextToSpeechProvider):
         first, second = (self.sarvam, self.bhashini) if self.primary_provider == "sarvam" else (self.bhashini, self.sarvam)
         first_name, second_name = ("Sarvam", "Bhashini") if self.primary_provider == "sarvam" else ("Bhashini", "Sarvam")
 
-        try:
-            audio = await first.synthesize(text, language_code, speaker_gender)
-            if audio and len(audio) > 100:
-                return audio
-            logger.info(f"[HybridSpeechProvider] {first_name} TTS returned empty audio. Failing over to {second_name}...")
-        except Exception as e:
-            logger.warning(f"[HybridSpeechProvider] {first_name} TTS failed: {e}. Failing over to {second_name}...")
+        if first.is_configured():
+            try:
+                audio = await first.synthesize(text, language_code, speaker_gender)
+                if audio and len(audio) > 100:
+                    return audio
+                logger.info(f"[HybridSpeechProvider] {first_name} TTS returned empty audio. Failing over to {second_name}...")
+            except Exception as e:
+                logger.warning(f"[HybridSpeechProvider] {first_name} TTS failed: {e}. Failing over to {second_name}...")
 
         # Fallover to second provider
-        try:
-            logger.info(f"[HybridSpeechProvider] Routing TTS to {second_name}...")
-            audio = await second.synthesize(text, language_code, speaker_gender)
-            if audio and len(audio) > 100:
-                return audio
-        except Exception as e:
-            logger.error(f"[HybridSpeechProvider] Both {first_name} and {second_name} TTS failed: {e}.")
+        if second.is_configured():
+            try:
+                logger.info(f"[HybridSpeechProvider] Routing TTS to {second_name}...")
+                audio = await second.synthesize(text, language_code, speaker_gender)
+                if audio and len(audio) > 100:
+                    return audio
+            except Exception as e:
+                logger.error(f"[HybridSpeechProvider] Both {first_name} and {second_name} TTS failed: {e}.")
 
-        return b""
+        return await self.mock_fallback.synthesize(text, language_code, speaker_gender)
 
     async def synthesize_stream(
         self, text: str, language_code: str = "or-IN"

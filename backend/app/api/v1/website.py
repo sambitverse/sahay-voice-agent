@@ -38,7 +38,7 @@ hybrid_speech = HybridSpeechProvider(
     bhashini_user_id=settings.BHASHINI_USER_ID,
     bhashini_api_key=settings.BHASHINI_API_KEY,
     bhashini_inference_url=settings.BHASHINI_INFERENCE_URL,
-    primary_provider="bhashini"
+    primary_provider="sarvam"
 )
 rag_retriever = VerifiedRAGRetriever()
 

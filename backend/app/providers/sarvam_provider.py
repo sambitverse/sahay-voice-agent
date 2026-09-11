@@ -16,14 +16,15 @@ class SarvamProvider(SpeechToTextProvider, TextToSpeechProvider):
     """
 
     def __init__(self, api_key: str, base_url: str = "https://api.sarvam.ai"):
-        self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        self.api_key = (api_key or "").strip().strip("\"'")
+        self.base_url = (base_url or "https://api.sarvam.ai").rstrip("/").strip("\"'")
         self.fallback = MockSpeechProvider()
         self._client: Optional[httpx.AsyncClient] = None
 
     def is_configured(self) -> bool:
         """Returns True if a valid Sarvam API key is configured."""
-        return bool(self.api_key and str(self.api_key).strip() not in ["", "your_sarvam_api_key", "None"])
+        k = (self.api_key or "").strip().strip("\"'")
+        return bool(k and k not in ["", "your_sarvam_api_key", "None"])
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
