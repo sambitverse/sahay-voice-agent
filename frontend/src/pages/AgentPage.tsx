@@ -137,7 +137,12 @@ export const AgentPage: React.FC = () => {
   const isAiSpeakingOutLoudRef = useRef<boolean>(false);
   const lastAiSpeakingEndTimeRef = useRef<number>(0);
   const recentAiTextsRef = useRef<string[]>([
-    'ନମସ୍କାର, ମୁଁ ସହାୟ ୧୪୫୬୬ ହେଲ୍ପଲାଇନ୍ ଏଜେଣ୍ଟ୍ କହୁଛି। ଆପଣ ନିରାପଦରେ ଅଛନ୍ତି କି? ଦୟାକରି ଆପଣଙ୍କ ସମସ୍ୟା କୁହନ୍ତୁ।'
+    'ନମସ୍କାର, ମୁଁ ସହାୟ ୧୪୫୬୬ ହେଲ୍ପଲାଇନ୍ ଏଜେଣ୍ଟ୍ କହୁଛି। ଆପଣ ନିରାପଦରେ ଅଛନ୍ତି କି? ଦୟାକରି ଆପଣଙ୍କ ସମସ୍ୟା କୁହନ୍ତୁ।',
+    'Namaskar. NHAA 14566 helpline re apananku swagata. Daya kari apananka samasya kuhan tu.',
+    'Namaskar. Rashtriya Helpline 14566 mein aapka swagat hai. Kripya apni samasya batayein.',
+    'Hello. Welcome to the National Helpline Against Atrocities (14566). Please tell us how we can help you.',
+    'Johar. NHAA 14566 helpline re sagun daram. Daya kate apanar samasya lai tabon pe.',
+    'नमस्ते, मैं सहाय 14566 हेल्पलाइन एजेंट हूँ। क्या आप सुरक्षित हैं? कृपया अपनी समस्या बताएं।'
   ]);
 
   const syncCallerSession = (phone: string) => {
@@ -183,11 +188,14 @@ export const AgentPage: React.FC = () => {
   const isEchoOfRecentAiSpeech = (text: string): boolean => {
     if (!text || !text.trim()) return false;
     const cleanInput = text.toLowerCase().replace(/[^\w\s\u0900-\u0D7F]/gi, ' ').trim();
+    if (!cleanInput) return false;
     const inputWords = cleanInput.split(/\s+/).filter((w) => w.length > 2);
     if (inputWords.length === 0) return false;
 
     for (const recent of recentAiTextsRef.current) {
       const cleanRecent = recent.toLowerCase().replace(/[^\w\s\u0900-\u0D7F]/gi, ' ').trim();
+      if (!cleanRecent) continue;
+
       if (cleanRecent.includes(cleanInput) || cleanInput.includes(cleanRecent)) {
         return true;
       }
@@ -196,7 +204,7 @@ export const AgentPage: React.FC = () => {
       for (const w of inputWords) {
         if (recentWords.has(w)) matchCount++;
       }
-      if (matchCount / inputWords.length >= 0.40) {
+      if (matchCount / inputWords.length >= 0.35) {
         return true;
       }
     }
@@ -277,18 +285,22 @@ export const AgentPage: React.FC = () => {
       wsRef.current.send(JSON.stringify({ event: 'ai_speaking_ended' }));
     }
 
-    isListeningNowRef.current = true;
-    setIsListeningNow(true);
-    setLiveSpeechText('');
-    setVoiceStatus('🟢 Listening now — please speak your message.');
+    // Acoustic room reverb guard: allow 500ms for physical speaker sound & room echo to dissipate
+    window.setTimeout(() => {
+      if (!isCallingRef.current || isAiSpeakingOutLoudRef.current) return;
+      isListeningNowRef.current = true;
+      setIsListeningNow(true);
+      setLiveSpeechText('');
+      setVoiceStatus('🟢 Listening now — please speak your message.');
 
-    if (recognitionRef.current && isCallingRef.current) {
-      try {
-        recognitionRef.current.start();
-      } catch {
-        // already active or not supported
+      if (recognitionRef.current && isCallingRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch {
+          // already active or not supported
+        }
       }
-    }
+    }, 500);
   }, []);
 
   // Web Speech synthesis fallback with natural Indian voice selection
@@ -343,7 +355,10 @@ export const AgentPage: React.FC = () => {
         isListeningNowRef.current = false;
         setIsListeningNow(false);
         setVoiceStatus('🔊 AI is speaking...');
-        recentAiTextsRef.current = [cleanText, ...recentAiTextsRef.current.slice(0, 5)];
+        recentAiTextsRef.current = [cleanText, ...recentAiTextsRef.current.slice(0, 8)];
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ event: 'ai_speaking_started' }));
+        }
       };
       utterance.onend = () => {
         handleAiSpeechCompleted();
@@ -572,8 +587,11 @@ export const AgentPage: React.FC = () => {
         console.log('[VoiceAgent] WebSocket connected successfully');
         setIsConnecting(false);
         setIsCalling(true);
+        isCallingRef.current = true;
         isListeningNowRef.current = false;
         setIsListeningNow(false);
+        setIsAiSpeakingOutLoud(true);
+        isAiSpeakingOutLoudRef.current = true;
         setVoiceStatus('Connected — AI helpline greeting is speaking...');
         setDetectedLanguage('Live WebSocket Connected');
         setLiveRiskLevel('ACTIVE');
@@ -589,6 +607,12 @@ export const AgentPage: React.FC = () => {
           processor.onaudioprocess = (event) => {
             if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
             if (!isCallingRef.current) return;
+            // STRICT MICROPHONE LOOPBACK SUPPRESSION:
+            // Never capture or stream microphone audio while AI is speaking, while not in listening phase,
+            // or during the 500ms room reverb cooldown after AI finishes speaking.
+            if (!isListeningNowRef.current || isAiSpeakingOutLoudRef.current) return;
+            if (Date.now() - lastAiSpeakingEndTimeRef.current < 500) return;
+
             const input = event.inputBuffer.getChannelData(0);
             const pcm16 = resampleTo16k(input, audioContext.sampleRate || 48000);
             const payload = new ArrayBuffer(pcm16.length * 2);
@@ -732,6 +756,10 @@ export const AgentPage: React.FC = () => {
 
           if (payload.event === 'user_transcript' && payload.text) {
             const userText = payload.text;
+            if (isEchoOfRecentAiSpeech(userText)) {
+              console.log('[VoiceAgent] Dropped user_transcript: acoustic loopback of AI speech:', userText);
+              return;
+            }
             setVoiceChatMessages((prev) => {
               if (prev.length > 0 && prev[prev.length - 1].sender === 'user') {
                 const updated = [...prev];
@@ -764,7 +792,7 @@ export const AgentPage: React.FC = () => {
             if (payload.language) {
               setDetectedLanguage(payload.language.toUpperCase());
             }
-            if (payload.transcript) {
+            if (payload.transcript && !isEchoOfRecentAiSpeech(payload.transcript)) {
               setVoiceChatMessages((prev) => {
                 if (prev.some((m) => m.sender === 'user' && m.text === payload.transcript)) {
                   return prev;
@@ -872,7 +900,10 @@ export const AgentPage: React.FC = () => {
             setIsAiSpeakingOutLoud(true);
             isAiSpeakingOutLoudRef.current = true;
             if (latestAgentTextRef.current) {
-              recentAiTextsRef.current = [latestAgentTextRef.current, ...recentAiTextsRef.current.slice(0, 5)];
+              recentAiTextsRef.current = [latestAgentTextRef.current, ...recentAiTextsRef.current.slice(0, 8)];
+            }
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ event: 'ai_speaking_started' }));
             }
 
             try {
@@ -914,6 +945,14 @@ export const AgentPage: React.FC = () => {
           if (payload.event === 'tts_unavailable') {
             hasReceivedAudioRef.current = true;
             if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+            isListeningNowRef.current = false;
+            setIsListeningNow(false);
+            setIsAiSpeakingOutLoud(true);
+            isAiSpeakingOutLoudRef.current = true;
+            setVoiceStatus('🔊 AI is speaking...');
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ event: 'ai_speaking_started' }));
+            }
             speakAiResponse(payload.text || latestAgentTextRef.current, payload.language);
           }
         } catch {}

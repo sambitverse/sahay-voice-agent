@@ -225,6 +225,46 @@ class ClientAudioSession:
                 self.vad.reset()
                 asyncio.create_task(self._process_utterance(utterance_bytes, websocket))
 
+    def _is_echo_of_agent_speech(self, text: str) -> bool:
+        """Detect whether incoming transcript is an acoustic echo/loopback of agent speech."""
+        if not text or not text.strip():
+            return False
+        clean_text = re.sub(r'[^\w\s\u0900-\u0D7F]', ' ', text.lower()).strip()
+        words = [w for w in clean_text.split() if len(w) > 2]
+        if not words:
+            return False
+        words_set = set(words)
+
+        candidates: List[str] = list(GREETINGS_TEXT.values())
+        candidates.extend([
+            "ନମସ୍କାର, ମୁଁ ସହାୟ ୧୪୫୬୬ ହେଲ୍ପଲାଇନ୍ ଏଜେଣ୍ଟ୍ କହୁଛି। ଆପଣ ନିରାପଦରେ ଅଛନ୍ତି କି? ଦୟାକରି ଆପଣଙ୍କ ସମସ୍ୟା କୁହନ୍ତୁ।",
+            "नमस्ते, मैं सहाय 14566 हेल्पलाइन एजेंट हूँ। क्या आप सुरक्षित हैं? कृपया अपनी समस्या बताएं।",
+            "ନମସ୍କାର, ମୁଁ ସହାୟ ଭଏସ୍ ଏଜେଣ୍ଟ୍ କହୁଛି। ଆପଣ ନିରାପଦରେ ଅଛନ୍ତି କି?",
+            "Namaskar. NHAA 14566 helpline re apananku swagata. Daya kari apananka samasya kuhan tu.",
+            "Namaskar. Rashtriya Helpline 14566 mein aapka swagat hai. Kripya apni samasya batayein.",
+        ])
+        for msg in self.conversation_history[-6:]:
+            if msg.get("role") in ("agent", "model"):
+                content = msg.get("content", "")
+                if content:
+                    candidates.append(content)
+
+        for cand in candidates:
+            clean_cand = re.sub(r'[^\w\s\u0900-\u0D7F]', ' ', cand.lower()).strip()
+            if not clean_cand:
+                continue
+            # Direct substring match
+            if clean_text in clean_cand or clean_cand in clean_text:
+                return True
+            cand_words = set(w for w in clean_cand.split() if len(w) > 2)
+            if not cand_words:
+                continue
+            overlap = len(words_set & cand_words)
+            if overlap / max(1, len(words)) >= 0.35:
+                return True
+
+        return False
+
     async def _process_utterance(self, audio_bytes: bytes, websocket: WebSocket) -> None:
         """Run full multimodal perception, fusion, reasoning, and response generation with turn serialization."""
         async with self.turn_lock:
@@ -344,6 +384,17 @@ class ClientAudioSession:
                     "event": "noise_ignored",
                     "message": "Filtered ambient background noise"
                 })
+                self.turn_in_progress = False
+                return
+
+            if self._is_echo_of_agent_speech(stripped_transcript):
+                logger.info(f"[Session {self.call_id}] Suppressed acoustic loopback echo of agent utterance: '{stripped_transcript}'")
+                await websocket.send_json({
+                    "event": "noise_ignored",
+                    "message": "Suppressed acoustic loopback echo of agent response"
+                })
+                self.audio_buffer.clear()
+                self.vad.reset()
                 self.turn_in_progress = False
                 return
 
@@ -642,13 +693,18 @@ class ClientAudioSession:
                         self.turn_in_progress = False
                     asyncio.create_task(_auto_clear_speaking())
             else:
-                self.is_ai_speaking = False
+                self.is_ai_speaking = True
                 self.turn_in_progress = False
                 await websocket.send_json({
                     "event": "tts_unavailable",
                     "text": safe_response,
                     "language": active_lang.value
                 })
+                approx_fallback_dur = max(3.0, min(15.0, len(safe_response) * 0.08))
+                async def _auto_clear_tts_unavailable():
+                    await asyncio.sleep(approx_fallback_dur + 1.5)
+                    self.is_ai_speaking = False
+                asyncio.create_task(_auto_clear_tts_unavailable())
 
         except Exception as e:
             logger.error(f"[Session {self.call_id}] Processing error: {e}", exc_info=True)
@@ -806,6 +862,11 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
                     session.vad.reset()
                     if session.current_tts_task and not session.current_tts_task.done():
                         session.current_tts_task.cancel()
+
+                elif event == "ai_speaking_started":
+                    session.is_ai_speaking = True
+                    session.audio_buffer.clear()
+                    session.vad.reset()
 
                 elif event == "ai_speaking_ended":
                     session.is_ai_speaking = False
