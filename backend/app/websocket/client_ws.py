@@ -184,22 +184,11 @@ class ClientAudioSession:
 
     async def handle_audio_frame(self, frame_pcm: bytes, websocket: WebSocket) -> None:
         """Process incoming 16kHz PCM audio chunk from caller."""
-        if self.is_ai_speaking:
-            # Check for caller barge-in (interruption) while AI is speaking
-            is_speech = self.vad.process_frame(frame_pcm)
-            if is_speech and getattr(self.vad, "consecutive_speech_ms", 0.0) >= 180.0:
-                logger.info(f"[Session {self.call_id}] Caller speech barge-in detected ({self.vad.consecutive_speech_ms:.0f}ms). Interrupting AI playback.")
-                self.is_ai_speaking = False
-                self.turn_in_progress = False
-                self.audio_buffer.extend(frame_pcm)
-                self.caller_audio_record.extend(frame_pcm)
-                try:
-                    await websocket.send_json({"event": "clear"})
-                except Exception:
-                    pass
-            return
-
-        if self.turn_in_progress:
+        if self.is_ai_speaking or self.turn_in_progress:
+            # While AI is delivering its response, do not take user input so the caller hears
+            # the full response without telephone carrier echo causing false interruptions.
+            self.audio_buffer.clear()
+            self.vad.reset()
             return
 
         is_speech = self.vad.process_frame(frame_pcm)

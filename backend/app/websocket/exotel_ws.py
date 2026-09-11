@@ -95,17 +95,21 @@ class ExotelWebSocketAdapter:
                         # Pacing: 3200 bytes = 200ms; sleep 170ms to keep audio smooth without underrun
                         await asyncio.sleep(0.17)
 
-                # Pacing completed: allow 0.2s for final network buffer, then clear speaking state
-                await asyncio.sleep(0.2)
-                if self.session and not self._interrupted:
+                # Pacing completed: allow 0.25s for final network buffer, then open for user input
+                await asyncio.sleep(0.25)
+                if self.session:
                     self.session.is_ai_speaking = False
                     self.session.turn_in_progress = False
+                    self.session.audio_buffer.clear()
+                    self.session.vad.reset()
 
             except Exception as e:
                 logger.error(f"[ExotelAdapter] Error streaming audio chunk to Exotel: {e}")
                 if self.session:
                     self.session.is_ai_speaking = False
                     self.session.turn_in_progress = False
+                    self.session.audio_buffer.clear()
+                    self.session.vad.reset()
 
         # 2. Interruption / Clear Audio Buffer Event
         elif event in ("clear", "clear_buffer", "barge_in"):
