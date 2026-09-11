@@ -159,22 +159,29 @@ class ConversationStateManager:
                 "Ask gently what issue, grievance, or emergency they would like to report today."
             ),
             ConversationState.PROBLEM_ASSESSMENT: (
-                "The caller just described their problem or situation. "
-                "1. Acknowledge and empathize with their specific situation in ONE short sentence referring directly to the topic they mentioned. "
-                "2. ASK ONE DIRECT QUESTION relevant to their specific situation (if an atrocity/threat: check immediate safety/location; if an administrative issue: ask about application/office details; if a dispute: ask about the parties involved). "
+                "The caller just described their initial situation. "
+                "1. Acknowledge and empathize with their specific situation in ONE short sentence referring directly to what they mentioned. "
+                "2. ASK ONE DIRECT SCENARIO-SPECIFIC QUESTION: "
+                "   - If accident/medical injury: ask where the accident occurred (exact landmark/road) or whether anyone is hurt and needs an ambulance. "
+                "   - If attack/threat/danger: ask where they are located right now and whether they are currently hidden or in safety. "
+                "   - If caste discrimination/social boycott: ask which village/panchayat this happened in and who is responsible. "
+                "   - If dispute/administrative issue: ask about the specific persons, office, or scheme involved. "
                 "CRITICAL MANDATE: DO NOT mention transferring to a supervisor. DO NOT recite helpline numbers."
             ),
             ConversationState.EMPATHY_GROUNDING: (
-                "The caller answered your previous question. "
-                "1. Validate their answer with calm understanding. "
-                "2. ASK ONE DIRECT FOLLOW-UP QUESTION to clarify the context (e.g., who is involved, where did it take place, or what assistance is immediately needed). "
-                "CRITICAL MANDATE: DO NOT mention transferring to a supervisor yet."
+                "The caller gave more details about their situation. "
+                "1. Validate their answer with calm, compassionate understanding. "
+                "2. ASK ONE DIRECT LOGICAL FOLLOW-UP QUESTION to advance the assistance: "
+                "   - If accident/injury: give one immediate first-aid instruction (e.g. press wound with clean cloth) and ask if anyone is nearby to help them or if they need 108 ambulance dispatched. "
+                "   - If threat/violence: ask who is pursuing/threatening them and their exact landmark for police dispatch. "
+                "   - If discrimination/boycott: ask whether a complaint was submitted to police/panchayat. "
+                "CRITICAL MANDATE: DO NOT mention transferring to a supervisor yet. Keep asking focused scenario questions."
             ),
             ConversationState.SUPPORT_VERIFICATION: (
-                "Address the caller's answers and situation directly. "
-                "1. If an atrocity or discrimination case: explain concrete legal protection under the SC/ST PoA Act 1989 (Zero FIR, Section 15A protection, free legal aid, interim relief). "
-                "2. If an administrative or civil case: provide the exact procedural pathway or grievance redressal procedure. "
-                "3. Ask what immediate support they require."
+                "The caller provided detailed context. "
+                "1. Validate their details and state the immediate assistance being initiated. "
+                "2. If accident/emergency: confirm medical/emergency rescue coordination and ask if they are able to speak safely. "
+                "3. If an atrocity or discrimination case: explain legal protection under the SC/ST PoA Act 1989 and ask what immediate legal or police protection they need right now."
             ),
             ConversationState.ESCALATION_HANDOFF: (
                 "The assessment is complete and all case details have been documented into an official dossier. "

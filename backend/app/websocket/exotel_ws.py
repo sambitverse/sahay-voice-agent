@@ -27,11 +27,14 @@ class ExotelWebSocketAdapter:
     and the Exotel Voicebot WebSocket protocol (8kHz slin16 PCM).
     """
 
-    def __init__(self, raw_ws: WebSocket, stream_sid: str = ""):
+    def __init__(self, raw_ws: WebSocket, stream_sid: str = "", session: Optional["ClientAudioSession"] = None):
         self.raw_ws = raw_ws
         self.stream_sid = stream_sid
+        self.session = session
         self.resampler = AudioResampler()
         self.is_closed = False
+        self.is_streaming_adapter = True
+        self._interrupted = False
         self._streaming_lock = asyncio.Lock()
 
     async def send_json(self, data: dict):
@@ -45,6 +48,8 @@ class ExotelWebSocketAdapter:
             payload_b64 = data.get("payload", "")
             if not payload_b64 or not self.stream_sid:
                 return
+
+            self._interrupted = False
 
             try:
                 pcm_bytes = base64.b64decode(payload_b64)
@@ -69,7 +74,7 @@ class ExotelWebSocketAdapter:
 
                 async with self._streaming_lock:
                     for i in range(0, total_len, chunk_size):
-                        if self.is_closed:
+                        if self.is_closed or self._interrupted:
                             break
                         chunk = pcm_8k[i:i + chunk_size]
                         if not chunk:
@@ -90,11 +95,24 @@ class ExotelWebSocketAdapter:
                         # Pacing: 3200 bytes = 200ms; sleep 170ms to keep audio smooth without underrun
                         await asyncio.sleep(0.17)
 
+                # Pacing completed: allow 0.2s for final network buffer, then clear speaking state
+                await asyncio.sleep(0.2)
+                if self.session and not self._interrupted:
+                    self.session.is_ai_speaking = False
+                    self.session.turn_in_progress = False
+
             except Exception as e:
                 logger.error(f"[ExotelAdapter] Error streaming audio chunk to Exotel: {e}")
+                if self.session:
+                    self.session.is_ai_speaking = False
+                    self.session.turn_in_progress = False
 
         # 2. Interruption / Clear Audio Buffer Event
         elif event in ("clear", "clear_buffer", "barge_in"):
+            self._interrupted = True
+            if self.session:
+                self.session.is_ai_speaking = False
+                self.session.turn_in_progress = False
             if self.stream_sid:
                 try:
                     await self.raw_ws.send_json({
@@ -115,12 +133,6 @@ class ExotelWebSocketAdapter:
                 logger.warning(f"[ExotelAdapter] Broadcast warning: {e}")
 
 
-async def _auto_clear_speaking(session: ClientAudioSession, delay: float):
-    """Wait for audio duration and reset AI speaking state."""
-    await asyncio.sleep(delay + 0.3)
-    session.is_ai_speaking = False
-
-
 async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
     """
     Handles Exotel Voicebot bidirectional audio over WebSockets.
@@ -132,7 +144,7 @@ async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
     session = ClientAudioSession(call_id)
     await session.init_session()
     resampler = AudioResampler()
-    adapter = ExotelWebSocketAdapter(websocket)
+    adapter = ExotelWebSocketAdapter(websocket, session=session)
 
     is_ulaw = False
 
@@ -199,8 +211,6 @@ async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
                             "payload": cached_b64,
                             "sample_rate": 16000
                         }))
-                        approx_dur = max(2.0, len(base64.b64decode(cached_b64)) / 32000.0)
-                        asyncio.create_task(_auto_clear_speaking(session, approx_dur))
                     else:
                         try:
                             greeting_audio = await session.sarvam.synthesize(_CACHED_GREETING_TEXT, "or-IN")
@@ -218,8 +228,6 @@ async def handle_exotel_websocket(websocket: WebSocket, call_id: str):
                                     "payload": b64_greet,
                                     "sample_rate": 16000
                                 }))
-                                approx_dur = max(2.0, len(greeting_audio) / 32000.0)
-                                asyncio.create_task(_auto_clear_speaking(session, approx_dur))
                         except Exception as e:
                             logger.error(f"[ExotelWS] Error synthesizing initial greeting: {e}")
 

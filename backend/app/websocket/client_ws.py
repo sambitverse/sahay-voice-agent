@@ -184,7 +184,22 @@ class ClientAudioSession:
 
     async def handle_audio_frame(self, frame_pcm: bytes, websocket: WebSocket) -> None:
         """Process incoming 16kHz PCM audio chunk from caller."""
-        if self.is_ai_speaking or self.turn_in_progress:
+        if self.is_ai_speaking:
+            # Check for caller barge-in (interruption) while AI is speaking
+            is_speech = self.vad.process_frame(frame_pcm)
+            if is_speech and getattr(self.vad, "consecutive_speech_ms", 0.0) >= 180.0:
+                logger.info(f"[Session {self.call_id}] Caller speech barge-in detected ({self.vad.consecutive_speech_ms:.0f}ms). Interrupting AI playback.")
+                self.is_ai_speaking = False
+                self.turn_in_progress = False
+                self.audio_buffer.extend(frame_pcm)
+                self.caller_audio_record.extend(frame_pcm)
+                try:
+                    await websocket.send_json({"event": "clear"})
+                except Exception:
+                    pass
+            return
+
+        if self.turn_in_progress:
             return
 
         is_speech = self.vad.process_frame(frame_pcm)
@@ -239,8 +254,14 @@ class ClientAudioSession:
         language_hint: Optional[str] = None
     ) -> None:
         if self.turn_in_progress:
-            logger.info(f"[Session {self.call_id}] Turn already in progress; dropping duplicate input.")
-            return
+            # Wait briefly if the previous turn is just finalizing
+            for _ in range(12):
+                await asyncio.sleep(0.1)
+                if not self.turn_in_progress:
+                    break
+            if self.turn_in_progress:
+                logger.info(f"[Session {self.call_id}] Turn already in progress; dropping duplicate input.")
+                return
 
         self.turn_in_progress = True
         try:
@@ -495,7 +516,8 @@ class ClientAudioSession:
                 f"  * If language is HINDI: do NOT speak Odia or English. Output natural, comforting spoken Hindi.\n"
                 f"  * If language is ODIA: do NOT speak Hindi or English. Output natural, comforting spoken Odia.\n"
                 f"  * If language is ENGLISH: do NOT speak Hindi or Odia. Output clear Indian English.\n"
-                f"- FAST SPOKEN VOICE REQUIREMENT: Keep your response very brief and to the point — at most 1 to 2 short sentences (under 25 words total). Never ramble, lecture, or explain procedures at length. Ask one clear question or give one immediate instruction."
+                f"- FAST SPOKEN VOICE REQUIREMENT: Keep your response very brief and to the point — at most 1 to 2 short sentences (under 25 words total). Never ramble, lecture, or explain procedures at length. Ask one clear question or give one immediate instruction.\n"
+                f"- SCENARIO-SPECIFIC FOLLOW-UP MANDATE: Directly acknowledge the caller's specific situation and ask ONE direct follow-up question (e.g., asking their exact location/landmark, injuries/bleeding, who is attacking/threatening, or whether emergency rescue/ambulance is needed). Never ask generic repetitive questions."
             )
             system_instructions += lang_mandate
 
@@ -506,7 +528,7 @@ class ClientAudioSession:
                         system_instructions=system_instructions,
                         retrieved_context=rag_context
                     ),
-                    timeout=15.0
+                    timeout=10.0
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"[Session {self.call_id}] Gemini response timed out; using fallback.")
@@ -568,12 +590,17 @@ class ClientAudioSession:
                     "sample_rate": 16000
                 })
 
-                approx_duration = max(1.0, len(tts_audio) / 32000.0)
-                async def _auto_clear_speaking():
-                    await asyncio.sleep(approx_duration + 1.2)
-                    self.is_ai_speaking = False
-                    self.turn_in_progress = False
-                asyncio.create_task(_auto_clear_speaking())
+                if getattr(websocket, "is_streaming_adapter", False):
+                    # Real-time streaming adapter (Exotel) paces and delivers chunks in real time
+                    # Speaking state is automatically cleared by the adapter once the final packet is sent
+                    pass
+                else:
+                    approx_duration = max(1.0, len(tts_audio) / 32000.0)
+                    async def _auto_clear_speaking():
+                        await asyncio.sleep(approx_duration + 0.3)
+                        self.is_ai_speaking = False
+                        self.turn_in_progress = False
+                    asyncio.create_task(_auto_clear_speaking())
             else:
                 self.is_ai_speaking = False
                 self.turn_in_progress = False

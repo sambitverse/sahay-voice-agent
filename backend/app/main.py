@@ -14,7 +14,7 @@ from .websocket.dashboard_ws import handle_dashboard_websocket
 
 # Configure structured logging
 logging.basicConfig(
-    level=logging.INFO if settings.DEBUG else logging.WARNING,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger("trauma_agent")

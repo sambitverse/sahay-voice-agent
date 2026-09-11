@@ -12,7 +12,7 @@ class VoiceActivityDetector:
     def __init__(
         self,
         min_energy_threshold: float = 240.0,
-        silence_duration_ms: int = 650,  # 650ms natural pause release
+        silence_duration_ms: int = 400,  # 400ms natural conversational pause release
         max_speech_duration_ms: int = 30000,
         sample_rate: int = 16000,
         frame_duration_ms: int = 20,

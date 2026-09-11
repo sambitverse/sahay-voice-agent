@@ -45,7 +45,7 @@ try:
         BHASHINI_INFERENCE_URL: str = (os.getenv("BHASHINI_INFERENCE_URL") or "https://dhruva-api.bhashini.gov.in").strip("\"'")
 
         GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-        GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-flash-lite-latest")
+        GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-3.1-flash-lite")
 
         SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
         SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
@@ -91,7 +91,7 @@ except ImportError:
         BHASHINI_INFERENCE_URL: str = (os.getenv("BHASHINI_INFERENCE_URL") or "https://dhruva-api.bhashini.gov.in").strip("\"'")
 
         GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-        GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-flash-lite-latest")
+        GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-3.1-flash-lite")
 
         SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
         SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
