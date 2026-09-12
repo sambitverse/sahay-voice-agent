@@ -137,7 +137,7 @@ This system is an **AI-assisted decision-support and triage tool**, NOT a clinic
 
 ## 👨‍💻 Author
 
-Created by **Team Vortex **
+Created by **Team Vortex **<br>
 -Shakti Ranjan Rout(Leader)<br>
 -Sambit Moharana<br>
 -Rohan Ku. Muduli<br>
