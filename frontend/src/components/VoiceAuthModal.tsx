@@ -31,11 +31,11 @@ export const VoiceAuthModal: React.FC<VoiceAuthModalProps> = ({
   isOpen,
   onClose,
   onAuthSuccess,
-  defaultPhone = '+91 94371-88210'
+  defaultPhone = ''
 }) => {
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState(defaultPhone);
+  const [fullName, setFullName] = useState(() => sessionStorage.getItem('sahay_caller_name') || localStorage.getItem('sahay_caller_name') || '');
+  const [phone, setPhone] = useState(() => defaultPhone || sessionStorage.getItem('sahay_caller_phone') || localStorage.getItem('sahay_caller_phone') || '');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -102,7 +102,7 @@ export const VoiceAuthModal: React.FC<VoiceAuthModalProps> = ({
 
     try {
       // Authenticate with backend auth endpoint
-      const res = await api.login('user', cleanPhone, code || '1234');
+      const res = await api.login('user', cleanPhone, code || '1234', fullName.trim());
       const cleanDigits = cleanPhone.replace(/\D/g, '').slice(-4) || '8821';
       const token = res?.token || `sahay_token_citizen_${Date.now()}`;
       const userObj = {
@@ -119,6 +119,11 @@ export const VoiceAuthModal: React.FC<VoiceAuthModalProps> = ({
       sessionStorage.setItem('sahay_signed_in', 'true');
       sessionStorage.setItem('sahay_user', JSON.stringify(userObj));
       sessionStorage.setItem('sahay_caller_phone', cleanPhone);
+      localStorage.setItem('sahay_caller_phone', cleanPhone);
+      if (fullName.trim()) {
+        sessionStorage.setItem('sahay_caller_name', fullName.trim());
+        localStorage.setItem('sahay_caller_name', fullName.trim());
+      }
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
       onAuthSuccess(cleanPhone, userObj.name);
@@ -141,6 +146,10 @@ export const VoiceAuthModal: React.FC<VoiceAuthModalProps> = ({
       sessionStorage.setItem('sahay_user', JSON.stringify(userObj));
       sessionStorage.setItem('sahay_caller_phone', cleanPhone);
       localStorage.setItem('sahay_caller_phone', cleanPhone);
+      if (fullName.trim()) {
+        sessionStorage.setItem('sahay_caller_name', fullName.trim());
+        localStorage.setItem('sahay_caller_name', fullName.trim());
+      }
 
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
@@ -151,12 +160,14 @@ export const VoiceAuthModal: React.FC<VoiceAuthModalProps> = ({
   };
 
   const handleQuickDemoBypass = () => {
-    const demoPhone = '+91 94371-88210';
-    const demoToken = 'sahay_token_verified_citizen_quick';
+    const demoPhone = phone.trim() || sessionStorage.getItem('sahay_caller_phone') || '+91 94371-88210';
+    const cleanDigits = demoPhone.replace(/\D/g, '').slice(-4) || '8821';
+    const demoName = fullName.trim() || sessionStorage.getItem('sahay_caller_name') || `Citizen (${demoPhone})`;
+    const demoToken = `sahay_token_verified_citizen_${cleanDigits}`;
     const userObj = {
       role: 'user',
-      id: 'citizen_8821',
-      name: 'Alekha Majhi (Verified Citizen)',
+      id: `citizen_${cleanDigits}`,
+      name: demoName,
       phone: demoPhone,
       authenticated: true,
       is_signed_in: true,
@@ -168,6 +179,10 @@ export const VoiceAuthModal: React.FC<VoiceAuthModalProps> = ({
     sessionStorage.setItem('sahay_user', JSON.stringify(userObj));
     sessionStorage.setItem('sahay_caller_phone', demoPhone);
     localStorage.setItem('sahay_caller_phone', demoPhone);
+    if (demoName && !demoName.startsWith('Citizen (')) {
+      sessionStorage.setItem('sahay_caller_name', demoName);
+      localStorage.setItem('sahay_caller_name', demoName);
+    }
 
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('sahay_auth_changed'));

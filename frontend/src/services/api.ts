@@ -108,26 +108,31 @@ export const api = {
   },
 
   /** Role-Based Authentication */
-  async login(role: 'user' | 'operator', identifier: string, code: string) {
+  async login(role: 'user' | 'operator', identifier: string, code: string, name?: string) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, identifier, code }),
+        body: JSON.stringify({ role, identifier, code, name }),
       });
       if (res.ok) return await res.json();
     } catch {
       // Fallback
     }
 
-    // Default authenticated session
+    // Default authenticated session with real user inputs
+    const cleanDigits = identifier.replace(/\D/g, '').slice(-4) || 'user';
+    const realName = (name && name.trim()) 
+      ? name.trim() 
+      : (role === 'user' ? `Citizen (${identifier})` : 'Officer S. Mishra (Triage Lead)');
+
     return {
       token: `sahay_token_${Math.random().toString(36).substring(2, 9)}`,
       role,
       user: {
-        id: role === 'user' ? 'citizen_9924' : 'officer_14566',
-        name: role === 'user' ? 'Verified Citizen' : 'Officer S. Mishra (Triage Lead)',
-        phone: identifier || (role === 'user' ? '+91 98765-43210' : '+91 95138-86363'),
+        id: role === 'user' ? `citizen_${cleanDigits}` : 'officer_14566',
+        name: realName,
+        phone: identifier,
         badge: role === 'operator' ? 'NHAA-TRIAGE-L2' : 'CITIZEN'
       }
     };

@@ -929,7 +929,7 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
             safety_flags=session.distress_state.safety_flags.__dict__ if hasattr(session.distress_state, "safety_flags") else None
         )
 
-        caller_num = getattr(session, "caller_phone", None) or "+91 94371-88210"
+        caller_num = getattr(session, "caller_phone", None) or "Direct Voice Caller"
         caller_name = getattr(session, "caller_name", None) or f"Citizen ({caller_num})"
         summary = user_texts[0] if user_texts else "Microphone Voice Stream Session"
         lang_val = session.language_router.get_session_language(call_id).value
@@ -960,11 +960,12 @@ async def handle_client_websocket(websocket: WebSocket, call_id: str):
                 summary=summary,
                 risk_level=session.distress_state.current_level.value,
                 caller_number=caller_num,
+                caller_name=caller_name,
                 language=lang_val,
                 recording_url=f"/api/v1/recordings/{call_id}.wav"
             )
             await broadcaster.broadcast("complaint_registered", complaint)
-            logger.info(f"[Session {call_id}] Registered genuine citizen complaint: {prank_res.ticket_id} for {caller_num}")
+            logger.info(f"[Session {call_id}] Registered genuine citizen complaint: {prank_res.ticket_id} for {caller_name} ({caller_num})")
         else:
             logger.info(f"[Session {call_id}] Prank/Spam filtered: {prank_res.reason}")
 

@@ -151,11 +151,11 @@ export const AgentPage: React.FC = () => {
     if (checkIsSignedIn()) {
       const cleanDigits = phone.replace(/\D/g, '').slice(-4) || '8821';
       const existingUserStr = sessionStorage.getItem('sahay_user');
-      let userName = `Verified Citizen (${phone})`;
+      let userName = sessionStorage.getItem('sahay_caller_name') || localStorage.getItem('sahay_caller_name') || `Citizen (${phone})`;
       if (existingUserStr) {
         try {
           const u = JSON.parse(existingUserStr);
-          if (u.name) userName = u.name;
+          if (u.name && !u.name.startsWith('Verified Citizen')) userName = u.name;
         } catch {}
       }
       sessionStorage.setItem(
@@ -492,11 +492,18 @@ export const AgentPage: React.FC = () => {
     if (callDuration >= 3) {
       const randId = Math.floor(1000 + Math.random() * 9000);
       const ticketRef = `TKT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randId}`;
+      let currentUserName = sessionStorage.getItem('sahay_caller_name') || localStorage.getItem('sahay_caller_name') || '';
+      try {
+        const u = JSON.parse(sessionStorage.getItem('sahay_user') || '{}');
+        if (u && u.name && !u.name.startsWith('Verified Citizen')) currentUserName = u.name;
+      } catch {}
+
       try {
         await api.registerComplaint({
           id: `complaint_${Date.now()}`,
           call_id: sessionCallIdRef.current || `call_${randId}_agent`,
           caller_number: callerPhone,
+          caller_name: currentUserName || `Citizen (${callerPhone})`,
           ticket_ref: ticketRef,
           type: 'voice',
           timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
@@ -569,11 +576,14 @@ export const AgentPage: React.FC = () => {
       const langParam = preferredLanguage && preferredLanguage !== 'auto' ? `&language=${encodeURIComponent(preferredLanguage)}` : '';
       const phoneParam = `&phone=${encodeURIComponent(targetPhone)}`;
 
-      let currentUserName = 'Citizen';
+      let currentUserName = sessionStorage.getItem('sahay_caller_name') || localStorage.getItem('sahay_caller_name') || '';
       try {
         const u = JSON.parse(sessionStorage.getItem('sahay_user') || '{}');
-        if (u && u.name) currentUserName = u.name;
+        if (u && u.name && !u.name.startsWith('Verified Citizen')) currentUserName = u.name;
       } catch {}
+      if (!currentUserName) {
+        currentUserName = `Citizen (${targetPhone})`;
+      }
       const nameParam = `&name=${encodeURIComponent(currentUserName)}`;
 
       const socketUrl = `${getWebSocketBaseUrl()}/ws/client/${sessionCallIdRef.current}?${phoneParam.slice(1)}${nameParam}${langParam}`;

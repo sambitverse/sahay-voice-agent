@@ -77,11 +77,20 @@ export const UserDashboard: React.FC = () => {
   useEffect(() => {
     if (callerPhone) {
       const cleanDigits = callerPhone.replace(/\D/g, '').slice(-4) || '8821';
+      let realName = sessionStorage.getItem('sahay_caller_name') || localStorage.getItem('sahay_caller_name') || '';
+      if (!realName) {
+        try {
+          const u = JSON.parse(sessionStorage.getItem('sahay_user') || '{}');
+          if (u.name && !u.name.startsWith('Verified Caller')) realName = u.name;
+        } catch {}
+      }
+      if (!realName) realName = `Citizen (${callerPhone})`;
+
       const userPayload = {
         role: 'user',
         phone: callerPhone,
         id: `citizen_${cleanDigits}`,
-        name: `Verified Caller (${callerPhone})`
+        name: realName
       };
       sessionStorage.setItem('sahay_user', JSON.stringify(userPayload));
       sessionStorage.setItem('sahay_caller_phone', callerPhone);

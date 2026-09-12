@@ -4,7 +4,8 @@ import { api } from '../services/api';
 
 export const LoginPage: React.FC = () => {
   const [role, setRole] = useState<'user' | 'operator'>('user');
-  const [identifier, setIdentifier] = useState('');
+  const [fullName, setFullName] = useState(() => sessionStorage.getItem('sahay_caller_name') || localStorage.getItem('sahay_caller_name') || '');
+  const [identifier, setIdentifier] = useState(() => sessionStorage.getItem('sahay_caller_phone') || localStorage.getItem('sahay_caller_phone') || '');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -53,11 +54,28 @@ export const LoginPage: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const cleanPhone = identifier.trim();
+    const cleanName = fullName.trim() || (role === 'user' ? `Citizen (${cleanPhone})` : '');
     try {
-      const res = await api.login(role, identifier, code);
-      sessionStorage.setItem('sahay_user', JSON.stringify({ ...res.user, is_signed_in: true, authenticated: true }));
+      const res = await api.login(role, cleanPhone, code, cleanName);
+      const finalUser = {
+        ...res.user,
+        name: cleanName || res.user.name,
+        phone: cleanPhone,
+        is_signed_in: true,
+        authenticated: true
+      };
+      sessionStorage.setItem('sahay_user', JSON.stringify(finalUser));
       sessionStorage.setItem('sahay_token', res.token);
       sessionStorage.setItem('sahay_signed_in', 'true');
+      if (role === 'user') {
+        sessionStorage.setItem('sahay_caller_phone', cleanPhone);
+        localStorage.setItem('sahay_caller_phone', cleanPhone);
+        if (cleanName) {
+          sessionStorage.setItem('sahay_caller_name', cleanName);
+          localStorage.setItem('sahay_caller_name', cleanName);
+        }
+      }
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
       const searchParams = new URLSearchParams(window.location.search);
@@ -67,24 +85,32 @@ export const LoginPage: React.FC = () => {
         return;
       }
       if (role === 'user') {
-        sessionStorage.setItem('sahay_caller_phone', identifier);
-        localStorage.setItem('sahay_caller_phone', identifier);
         navigate('/user-dashboard');
       } else {
         navigate('/operator-dashboard');
       }
     } catch {
+      const cleanDigits = cleanPhone.replace(/\D/g, '').slice(-4) || 'user';
+      const realName = cleanName || (role === 'user' ? `Citizen (${cleanPhone})` : 'Officer S. Mishra (Triage Lead)');
       sessionStorage.setItem('sahay_signed_in', 'true');
       sessionStorage.setItem('sahay_token', `sahay_token_portal_${Date.now()}`);
       sessionStorage.setItem('sahay_user', JSON.stringify({
         role: role,
-        id: role === 'user' ? 'citizen_9924' : 'officer_14566',
-        name: role === 'user' ? 'Verified Citizen' : 'Officer S. Mishra (Triage Lead)',
-        phone: identifier,
+        id: role === 'user' ? `citizen_${cleanDigits}` : 'officer_14566',
+        name: realName,
+        phone: cleanPhone,
         is_signed_in: true,
         authenticated: true,
         badge: role === 'operator' ? 'NHAA-TRIAGE-L2' : 'CITIZEN'
       }));
+      if (role === 'user') {
+        sessionStorage.setItem('sahay_caller_phone', cleanPhone);
+        localStorage.setItem('sahay_caller_phone', cleanPhone);
+        if (cleanName) {
+          sessionStorage.setItem('sahay_caller_name', cleanName);
+          localStorage.setItem('sahay_caller_name', cleanName);
+        }
+      }
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
       const searchParams = new URLSearchParams(window.location.search);
@@ -94,8 +120,6 @@ export const LoginPage: React.FC = () => {
         return;
       }
       if (role === 'user') {
-        sessionStorage.setItem('sahay_caller_phone', identifier);
-        localStorage.setItem('sahay_caller_phone', identifier);
         navigate('/user-dashboard');
       } else {
         navigate('/operator-dashboard');
@@ -106,16 +130,28 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleDemoBypass = (targetRole: 'user' | 'operator') => {
+    const cleanPhone = identifier.trim() || (targetRole === 'user' ? (sessionStorage.getItem('sahay_caller_phone') || '+91 94371-88210') : 'OP-14566');
+    const cleanName = fullName.trim() || (sessionStorage.getItem('sahay_caller_name') || (targetRole === 'user' ? `Citizen (${cleanPhone})` : 'Officer S. Mishra (Triage Lead)'));
+    const cleanDigits = cleanPhone.replace(/\D/g, '').slice(-4) || 'user';
     sessionStorage.setItem('sahay_signed_in', 'true');
     sessionStorage.setItem('sahay_token', `sahay_token_demo_${targetRole}`);
     sessionStorage.setItem('sahay_user', JSON.stringify({
-      id: targetRole === 'user' ? 'citizen_9924' : 'officer_14566',
-      name: targetRole === 'user' ? 'Verified Citizen' : 'Officer S. Mishra (Triage Lead)',
+      id: targetRole === 'user' ? `citizen_${cleanDigits}` : 'officer_14566',
+      name: cleanName,
+      phone: cleanPhone,
       role: targetRole,
       badge: targetRole === 'operator' ? 'NHAA-TRIAGE-L2' : 'CITIZEN',
       is_signed_in: true,
       authenticated: true
     }));
+    if (targetRole === 'user') {
+      sessionStorage.setItem('sahay_caller_phone', cleanPhone);
+      localStorage.setItem('sahay_caller_phone', cleanPhone);
+      if (cleanName) {
+        sessionStorage.setItem('sahay_caller_name', cleanName);
+        localStorage.setItem('sahay_caller_name', cleanName);
+      }
+    }
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('sahay_auth_changed'));
     const searchParams = new URLSearchParams(window.location.search);
@@ -166,6 +202,14 @@ export const LoginPage: React.FC = () => {
             <form onSubmit={handleLogin} className="form">
               {role === 'user' ? (
                 <>
+                  <input
+                    className="form-input w-input"
+                    placeholder="Citizen Full Name (e.g. Sambit Kumar)"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    style={{ marginBottom: '12px' }}
+                  />
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'stretch' }}>
                     <input
                       className="form-input w-input"

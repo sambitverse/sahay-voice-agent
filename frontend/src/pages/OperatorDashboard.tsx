@@ -6,6 +6,7 @@ import { api, getDashboardWsUrl } from '../services/api';
 interface QueueItem {
   id: string;
   call_id: string;
+  caller_name?: string;
   caller_number: string;
   channel: string;
   timestamp: string;
@@ -150,7 +151,8 @@ export const OperatorDashboard: React.FC = () => {
                 newItems.push({
                   id: c.ticket_ref || c.id || `Q-${c.call_id}`,
                   call_id: c.call_id,
-                  caller_number: `Caller (${(c.language || 'ODIA').toUpperCase()})`,
+                  caller_name: c.caller_name || '',
+                  caller_number: c.caller_phone || c.caller_number || 'Direct Caller',
                   channel: c.type === 'voice' ? 'CITIZEN VOICE CALL' : 'TELEPHONE LINE',
                   timestamp: c.timestamp || 'Recent',
                   risk_level: (c.risk_level || 'HIGH') as any,
@@ -230,7 +232,8 @@ export const OperatorDashboard: React.FC = () => {
               const newItem: QueueItem = {
                 id: data.ticket_id || `Q-${data.call_id}`,
                 call_id: data.call_id,
-                caller_number: `Caller (${(data.language || 'Voice').toUpperCase()})`,
+                caller_name: data.caller_name || '',
+                caller_number: data.caller_phone || data.caller_number || 'Direct Voice Caller',
                 channel: 'CITIZEN VOICE CALL',
                 timestamp: 'Just now',
                 risk_level: (data.risk_level || 'HIGH') as any,
@@ -817,8 +820,11 @@ export const OperatorDashboard: React.FC = () => {
                             </div>
 
                             <h4 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
-                              {item.caller_number}
+                              {item.caller_name ? item.caller_name : item.caller_number}
                             </h4>
+                            <div style={{ fontSize: '12.5px', color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}>
+                              📞 {item.caller_number}
+                            </div>
                             <div style={{ fontSize: '12px', color: '#64748b' }}>
                               {item.channel}
                             </div>
@@ -875,8 +881,13 @@ export const OperatorDashboard: React.FC = () => {
                           </span>
                         </div>
                         <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
-                          {selectedItem.caller_number}
+                          {selectedItem.caller_name ? selectedItem.caller_name : selectedItem.caller_number}
                         </h3>
+                        {selectedItem.caller_name && (
+                          <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>
+                            📞 Mobile Number: <span style={{ color: '#0284c7' }}>{selectedItem.caller_number}</span>
+                          </div>
+                        )}
                         <div style={{ fontSize: '13px', color: '#64748b' }}>
                           Inbound Channel: <span style={{ fontWeight: 600, color: '#334155' }}>{selectedItem.channel}</span>
                         </div>
@@ -957,58 +968,6 @@ export const OperatorDashboard: React.FC = () => {
                       sviScore={selectedItem.svi_score}
                       data={getTraumaChartData(selectedItem)}
                     />
-
-                    {/* SBAR Clinical Handoff Report: 4 Quadrants */}
-                    <div style={{ width: '100%' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '14px' }}>
-                        📋 SBAR Clinical Law Enforcement Report:
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                        {/* Situation */}
-                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #fecaca', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                          <div style={{ backgroundColor: '#fef2f2', padding: '8px 14px', borderBottom: '1px solid #fee2e2', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#dc2626', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>S</span>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#991b1b', letterSpacing: '0.03em' }}>SITUATION</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
-                            {selectedItem.sbar.situation}
-                          </div>
-                        </div>
-
-                        {/* Background */}
-                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #fde68a', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                          <div style={{ backgroundColor: '#fffbeb', padding: '8px 14px', borderBottom: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#d97706', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>B</span>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#92400e', letterSpacing: '0.03em' }}>BACKGROUND</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
-                            {selectedItem.sbar.background}
-                          </div>
-                        </div>
-
-                        {/* Assessment */}
-                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                          <div style={{ backgroundColor: '#eff6ff', padding: '8px 14px', borderBottom: '1px solid #dbeafe', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#2563eb', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>A</span>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', letterSpacing: '0.03em' }}>ASSESSMENT</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
-                            {selectedItem.sbar.assessment}
-                          </div>
-                        </div>
-
-                        {/* Recommendation */}
-                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #bbf7d0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                          <div style={{ backgroundColor: '#f0fdf4', padding: '8px 14px', borderBottom: '1px solid #dcfce7', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '10.5px', fontWeight: 900, backgroundColor: '#16a34a', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>R</span>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#166534', letterSpacing: '0.03em' }}>RECOMMENDATION</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
-                            {selectedItem.sbar.recommendation}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 ) : (
                   <div 
@@ -1022,7 +981,7 @@ export const OperatorDashboard: React.FC = () => {
                     }}
                   >
                     <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>No Case Selected</h3>
-                    <p style={{ fontSize: '14px', color: '#64748b' }}>Select a triage case from the incoming priority queue on the left to inspect biometric telemetry &amp; SBAR report.</p>
+                    <p style={{ fontSize: '14px', color: '#64748b' }}>Select a triage case from the incoming priority queue on the left to inspect biometric telemetry.</p>
                   </div>
                 )}
               </div>

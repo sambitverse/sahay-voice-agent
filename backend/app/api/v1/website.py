@@ -58,6 +58,7 @@ class LoginRequest(BaseModel):
     role: str = Field(..., description="'user' or 'operator'")
     identifier: str
     code: str
+    name: Optional[str] = None
 
 class ChatMessageRequest(BaseModel):
     message: str
@@ -92,6 +93,7 @@ class RegisterComplaintRequest(BaseModel):
     summary: str
     risk_level: str = "HIGH"
     caller_number: str
+    caller_name: Optional[str] = None
     language: str = "or-IN"
     recording_url: Optional[str] = None
     recommended_services: Optional[List[str]] = None
@@ -201,13 +203,15 @@ async def portal_login(req: LoginRequest):
             )
 
 
+    citizen_name = (req.name.strip() if req.name and req.name.strip() else f"Citizen ({req.identifier})")
     user_info = {
         "token": f"sahay_auth_{uuid.uuid4().hex}",
         "role": role,
         "user": {
             "id": f"citizen_{uuid.uuid4().hex[:6]}" if role == "user" else "officer_14566",
-            "name": "Verified Citizen" if role == "user" else "Officer S. Mishra (Triage Lead)",
+            "name": citizen_name if role == "user" else "Officer S. Mishra (Triage Lead)",
             "identifier": req.identifier,
+            "phone": req.identifier if role == "user" else None,
             "badge": "CITIZEN" if role == "user" else "NHAA-TRIAGE-L2"
         }
     }
@@ -289,6 +293,7 @@ async def register_citizen_complaint(req: RegisterComplaintRequest):
         summary=req.summary,
         risk_level=req.risk_level,
         caller_number=req.caller_number,
+        caller_name=req.caller_name,
         language=req.language,
         recording_url=req.recording_url,
         recommended_services=req.recommended_services

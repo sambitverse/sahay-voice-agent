@@ -254,13 +254,17 @@ class SupabaseManager:
         caller_number: str = "+91 94371-88210",
         language: str = "or-IN",
         recording_url: Optional[str] = None,
-        recommended_services: Optional[List[str]] = None
+        recommended_services: Optional[List[str]] = None,
+        caller_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """Registers a legitimate complaint for public citizen dashboard showcase."""
+        clean_name = (caller_name or "").strip() or f"Citizen ({caller_number})"
         complaint = {
             "id": f"complaint_{call_id}",
             "call_id": call_id,
+            "caller_name": clean_name,
             "caller_number": caller_number,
+            "caller_phone": caller_number,
             "ticket_ref": ticket_id,
             "type": "voice",
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
@@ -274,7 +278,7 @@ class SupabaseManager:
         }
         # Prepend to top of list
         self.in_memory_complaints.insert(0, complaint)
-        logger.info(f"[SupabaseManager] Registered complaint {ticket_id} for call {call_id} from {caller_number}")
+        logger.info(f"[SupabaseManager] Registered complaint {ticket_id} for call {call_id} from {clean_name} ({caller_number})")
         return complaint
 
     def get_citizen_complaints(self, phone: Optional[str] = None) -> List[Dict[str, Any]]:
